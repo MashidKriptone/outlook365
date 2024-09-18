@@ -3,7 +3,7 @@
   <!-- Begin Basic Settings: Add-in metadata, used for all versions of Office unless override provided. -->
   <Id>93b73d52-86d7-45a5-9747-48cc47740f57</Id>
   <Version>1.0.0.3</Version>
-  <ProviderName>My Company</ProviderName>
+  <ProviderName>Kriptone</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="KntrolEMAIL" />
   <Description DefaultValue="KntrolEMAIL Description" />
@@ -20,7 +20,7 @@
   <FormSettings>
     <Form xsi:type="ItemRead">
       <DesktopSettings>
-        <SourceLocation DefaultValue="https://outlookaddin.onrender.com/taskpane.html" />
+        <SourceLocation DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
         <RequestedHeight>250</RequestedHeight>
       </DesktopSettings>
     </Form>
@@ -82,8 +82,8 @@
           <bt:Image id="icon80" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
         </bt:Images>
         <bt:Urls>
-          <bt:Url id="Taskpane.Url" DefaultValue="https://outlookaddin.onrender.com/taskpane.html" />
-          <bt:Url id="residUILessFunctionFileUrl" DefaultValue="https://outlookaddin.onrender.com/taskpane.html" />
+          <bt:Url id="Taskpane.Url" DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
+          <bt:Url id="residUILessFunctionFileUrl" DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
         </bt:Urls>
         <bt:ShortStrings>
           <bt:String id="groupLabel" DefaultValue="SaaS Sample" />
