@@ -8,31 +8,31 @@ Office.onReady((info) => {
     }
 });
 
-async function fetchPolicyDomains() {
-    try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        });
+// async function fetchPolicyDomains() {
+//     try {
+//         const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
+//             method: 'GET',
+//             headers: {
+//                 'Content-Type': 'application/json',
+//                 'Accept': 'application/json'
+//             }
+//         });
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch policy domains: ' + response.statusText);
-        }
+//         if (!response.ok) {
+//             throw new Error('Failed to fetch policy domains: ' + response.statusText);
+//         }
 
-        const policies = await response.json();
+//         const policies = await response.json();
 
-        const allowedDomains = policies[0].AllowedDomains || [];
-        const blockedDomains = policies[0].BlockedDomains || [];
+//         const allowedDomains = policies[0].AllowedDomains || [];
+//         const blockedDomains = policies[0].BlockedDomains || [];
 
-        return { allowedDomains, blockedDomains };
-    } catch (error) {
-        console.error('Error fetching policy domains:', error);
-        return { allowedDomains: [], blockedDomains: [] };
-    }
-}
+//         return { allowedDomains, blockedDomains };
+//     } catch (error) {
+//         console.error('Error fetching policy domains:', error);
+//         return { allowedDomains: [], blockedDomains: [] };
+//     }
+// }
 
 // Event handler for the ItemSend event
 async function onItemSend(eventArgs) {
@@ -49,20 +49,20 @@ async function onItemSend(eventArgs) {
         const attachments = await getAttachmentsAsync(item);
 
          // Fetch the policy domains
-         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
+        //  const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-         // Check if the email's recipients are blocked or allowed
-         if (isDomainBlockedOrAllowed(toRecipients, blockedDomains, allowedDomains) ||
-             isDomainBlockedOrAllowed(ccRecipients, blockedDomains, allowedDomains) ||
-             isDomainBlockedOrAllowed(bccRecipients, blockedDomains, allowedDomains)) {
+        //  // Check if the email's recipients are blocked or allowed
+        //  if (isDomainBlockedOrAllowed(toRecipients, blockedDomains, allowedDomains) ||
+        //      isDomainBlockedOrAllowed(ccRecipients, blockedDomains, allowedDomains) ||
+        //      isDomainBlockedOrAllowed(bccRecipients, blockedDomains, allowedDomains)) {
  
-             Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                 type: "errorMessage",
-                 message: "This email cannot be sent as it contains blocked domains."
-             });
-             eventArgs.completed({ allowEvent: false });
-             return;
-         }
+        //      Office.context.mailbox.item.notificationMessages.addAsync("error", {
+        //          type: "errorMessage",
+        //          message: "This email cannot be sent as it contains blocked domains."
+        //      });
+        //      eventArgs.completed({ allowEvent: false });
+        //      return;
+        //  }
  
          // Prepare email data for saving
          const emailData = prepareEmailData(from, toRecipients, ccRecipients, bccRecipients, subject, body, attachments);
@@ -100,26 +100,26 @@ function prepareEmailData(from, to, cc, bcc, subject, body, attachments) {
     };
 }
 
-function isDomainBlockedOrAllowed(recipients, blockedDomains, allowedDomains) {
-    const recipientArray = recipients ? recipients.split(',').map(email => email.trim()) : [];
+// function isDomainBlockedOrAllowed(recipients, blockedDomains, allowedDomains) {
+//     const recipientArray = recipients ? recipients.split(',').map(email => email.trim()) : [];
     
-    // Check if the recipient domain is blocked or allowed
-    for (let recipient of recipientArray) {
-        const domain = recipient.split('@')[1];  // Extract the domain from the email
+//     // Check if the recipient domain is blocked or allowed
+//     for (let recipient of recipientArray) {
+//         const domain = recipient.split('@')[1];  // Extract the domain from the email
 
-        if (blockedDomains.includes(domain)) {
-            console.log(`Domain ${domain} is blocked.`);
-            return true;
-        }
+//         if (blockedDomains.includes(domain)) {
+//             console.log(`Domain ${domain} is blocked.`);
+//             return true;
+//         }
 
-        if (allowedDomains.length > 0 && !allowedDomains.includes(domain)) {
-            console.log(`Domain ${domain} is not in the allowed list.`);
-            return true;
-        }
-    }
+//         if (allowedDomains.length > 0 && !allowedDomains.includes(domain)) {
+//             console.log(`Domain ${domain} is not in the allowed list.`);
+//             return true;
+//         }
+//     }
 
-    return false;
-}
+//     return false;
+// }
 
 
 // Helper function to send the email data to the backend server

@@ -73,6 +73,30 @@
               </OfficeTab>
             </ExtensionPoint>
           </DesktopFormFactor>
+          <MobileFormFactor>
+            <!-- Configures the add-in button to appear in the Appointment Attendee surface of Outlook on mobile devices. -->
+            <ExtensionPoint xsi:type="MobileLogEventAppointmentAttendee">
+              <Control xsi:type="MobileButton" id="appointmentReadFunctionButton">
+                <Label resid="residLabel"/>
+                <Icon>
+                  <bt:Image size="25" scale="1" resid="icon-16"/>
+                  <bt:Image size="25" scale="2" resid="icon-16"/>
+                  <bt:Image size="25" scale="3" resid="icon-16"/>
+
+                  <bt:Image size="32" scale="1" resid="icon-32"/>
+                  <bt:Image size="32" scale="2" resid="icon-32"/>
+                  <bt:Image size="32" scale="3" resid="icon-32"/>
+
+                  <bt:Image size="48" scale="1" resid="icon-48"/>
+                  <bt:Image size="48" scale="2" resid="icon-48"/>
+                  <bt:Image size="48" scale="3" resid="icon-48"/>
+                </Icon>
+                <Action xsi:type="ShowTaskpane">
+                  <SourceLocation resid="Taskpane.Url"/>
+                </Action> 
+              </Control>
+            </ExtensionPoint>
+          </MobileFormFactor>
         </Host>
       </Hosts>
       <Resources>
@@ -80,6 +104,10 @@
           <bt:Image id="icon16" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
           <bt:Image id="icon32" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
           <bt:Image id="icon80" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
+          <bt:Image id="icon-16" DefaultValue="https://i.postimg.cc/WpSjm7Fh/imresizer-1726652665061.png"/>
+          <bt:Image id="icon-32" DefaultValue="https://i.postimg.cc/bN2CYyhp/imresizer-1726652684749.png"/>
+          <bt:Image id="icon-48" DefaultValue="https://i.postimg.cc/kMWsLjFg/imresizer-1726652705596.png"/>
+          <bt:Image id="icon-80" DefaultValue="https://i.postimg.cc/VLQfkNCF/imresizer-1726652719668.png"/>
         </bt:Images>
         <bt:Urls>
           <bt:Url id="Taskpane.Url" DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
@@ -93,11 +121,14 @@
           <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Add-in Tooltip" />
           <bt:String id="GetStarted.Title" DefaultValue="Microsoft Graph data add-in has loaded successfully." />
           <bt:String id="residLabel4" DefaultValue="OneDrive Files" />
+          <bt:String id="residDescription" DefaultValue="Log appointment notes and other details to Contoso CRM."/>
+          <bt:String id="residLabel" DefaultValue="Log to Contoso"/>
         </bt:ShortStrings>
         <bt:LongStrings>
           <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Add-in Tooltip" />
           <bt:String id="TaskpaneButton.Title" DefaultValue="Open Add-in Title" />
           <bt:String id="GetStarted.Description" DefaultValue="Choose Open add-in, then Connect to OneDrive to get started." />
+          <bt:String id="residTooltip" DefaultValue="Log notes to Contoso CRM for this appointment."/>
         </bt:LongStrings>
       </Resources>
     </VersionOverrides>
