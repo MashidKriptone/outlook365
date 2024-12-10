@@ -3,7 +3,7 @@
 Office.onReady((info) => {
     if (info.host === Office.HostType.Outlook) {
         // Register the event handler for the ItemSend event
-        Office.context.mailbox.item.addHandlerAsync(Office.EventType.ItemSend, onItemSend);
+        Office.context.mailbox.item.addHandlerAsync(Office.EventType.ItemSent, onItemSent);
         console.log('Add-in is running in background.');
     }
 });
@@ -18,7 +18,7 @@ const regexPatterns = {
 };
 
 // Event handler for the ItemSend event
-async function onItemSend(eventArgs) {
+async function onItemSent(eventArgs) {
     try {
         const item = Office.context.mailbox.item;
 

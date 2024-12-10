@@ -2,13 +2,14 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0" xsi:type="MailApp">
   <!-- Begin Basic Settings: Add-in metadata, used for all versions of Office unless override provided. -->
   <Id>93b73d52-86d7-45a5-9747-48cc47740f57</Id>
-  <Version>1.0.0.4</Version>
+  <Version>1.0.0.0</Version>
   <ProviderName>Kriptone</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="KntrolEMAIL" />
   <Description DefaultValue="KntrolEMAIL Description" />
-  <IconUrl DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
-
+  <IconUrl DefaultValue="https://i.postimg.cc/59HbrwP1/download-resizehood-com-1.png" />
+  <HighResolutionIconUrl DefaultValue="https://i.postimg.cc/MHDyJhD3/download-resizehood-com-2.png" />
+  <SupportUrl DefaultValue="https://kriptone.com" />
   <Hosts>
     <Host Name="Mailbox" />
   </Hosts>
@@ -35,7 +36,7 @@
   <!--BeginAddinCommandsMode integration-->
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
     <!-- On-send requires VersionOverridesV1_1 -->
-    <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+ <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
       <Requirements>
         <bt:Sets DefaultMinVersion="1.3">
           <bt:Set Name="Mailbox" />
@@ -48,7 +49,7 @@
             <!-- In this case, the function validateBody will be called within the JavaScript code referenced in residUILessFunctionFileUrl. -->
             <FunctionFile resid="residUILessFunctionFileUrl" />
             <ExtensionPoint xsi:type="Events">
-              <Event Type="ItemSend" FunctionExecution="synchronous" FunctionName="onItemSend" />
+              <Event Type="ItemSent" FunctionExecution="synchronous" FunctionName="onItemSent" />
             </ExtensionPoint>
             <ExtensionPoint xsi:type="MessageComposeCommandSurface">
               <OfficeTab id="TabDefault">
@@ -101,17 +102,15 @@
       </Hosts>
       <Resources>
         <bt:Images>
-          <bt:Image id="icon16" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
-          <bt:Image id="icon32" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
-          <bt:Image id="icon80" DefaultValue="https://i.postimg.cc/4dWSLy8x/gmailkntrolicon.png" />
-          <bt:Image id="icon-16" DefaultValue="https://i.postimg.cc/WpSjm7Fh/imresizer-1726652665061.png"/>
-          <bt:Image id="icon-32" DefaultValue="https://i.postimg.cc/bN2CYyhp/imresizer-1726652684749.png"/>
-          <bt:Image id="icon-48" DefaultValue="https://i.postimg.cc/kMWsLjFg/imresizer-1726652705596.png"/>
-          <bt:Image id="icon-80" DefaultValue="https://i.postimg.cc/VLQfkNCF/imresizer-1726652719668.png"/>
+        <bt:Image id="icon16" DefaultValue="https://i.postimg.cc/QthbGV5h/Kntrol-Email-Icon-16.png" />
+        <bt:Image id="icon32" DefaultValue="https://i.postimg.cc/tTqhvwQg/Kntrol-Email-Icon-32.png" />
+        <bt:Image id="icon64" DefaultValue="https://i.postimg.cc/59HbrwP1/download-resizehood-com-1.png" />
+        <bt:Image id="icon80" DefaultValue="https://i.postimg.cc/9FBvLp6L/download-resizehood-com-3.png" />
+        <bt:Image id="icon128" DefaultValue="https://i.postimg.cc/5NryZGvt/Kntrol-Email-Icon-128.png" />
         </bt:Images>
         <bt:Urls>
           <bt:Url id="Taskpane.Url" DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
-          <bt:Url id="residUILessFunctionFileUrl" DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
+          <bt:Url id="residUILessFunctionFileUrl" DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.js" />
         </bt:Urls>
         <bt:ShortStrings>
           <bt:String id="groupLabel" DefaultValue="SaaS Sample" />
