@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0" xsi:type="MailApp">
   <!-- Begin Basic Settings: Add-in metadata, used for all versions of Office unless override provided. -->
-  <Id>93b73d52-86d7-45a5-9747-48cc47740f57</Id>
+  <Id>b785ac1c-bb9a-4902-a197-d349ed9ac460</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>Kriptone</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
