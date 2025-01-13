@@ -3,7 +3,7 @@
 Office.onReady((info) => {
     if (info.host === Office.HostType.Outlook) {
         // Register the event handler for the ItemSend event
-        Office.context.mailbox.item.addHandlerAsync(Office.EventType.ItemSent, onItemSent);
+        Office.actions.associate("onMessageSendHandler", onMessageSendHandler);
         console.log('Add-in is running in background.');
     }
 });
@@ -18,7 +18,7 @@ const regexPatterns = {
 };
 
 // Event handler for the ItemSend event
-async function onItemSent(eventArgs) {
+async function onMessageSendHandler(eventArgs) {
     try {
         const item = Office.context.mailbox.item;
 
@@ -99,7 +99,7 @@ async function onItemSent(eventArgs) {
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
