@@ -99,7 +99,7 @@ async function onItemSent(eventArgs) {
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
