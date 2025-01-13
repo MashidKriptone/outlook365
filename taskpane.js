@@ -34,14 +34,14 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if policies are empty
-        if (allowedDomains.length === 0 && blockedDomains.length === 0) {
-            console.log("No policies defined. Allowing email to be sent.");
-            eventArgs.completed(); // Allow the email
+        // If policy API response is empty, allow the email
+        if (!allowedDomains.length && !blockedDomains.length) {
+            console.log('Policy API returned no domains. Allowing email to be sent.');
+            eventArgs.completed();
             return;
         }
 
-        // Validate recipients against blocked domains
+        // Block email if domains violate policy
         if (
             (blockedDomains.length > 0 && isDomainBlocked(toRecipients, blockedDomains)) ||
             isDomainBlocked(ccRecipients, blockedDomains) ||
@@ -120,10 +120,10 @@ async function fetchPolicyDomains() {
 
         const policies = await response.json();
 
-        // Handle cases where `policies` is empty or doesn't have required fields
-        if (!policies || policies.length === 0) {
-            console.warn("Policy API returned an empty response. Allowing all emails.");
-            return { allowedDomains: [], blockedDomains: [] }; // Default behavior
+        // Handle empty response scenario
+        if (!policies.length) {
+            console.log('Policy API returned an empty response.');
+            return { allowedDomains: [], blockedDomains: [] };
         }
 
         const allowedDomains = policies[0]?.AllowedDomains || [];
@@ -135,7 +135,6 @@ async function fetchPolicyDomains() {
         return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
     }
 }
-
 // Helper function to validate email addresses
 function validateEmailAddresses(recipients) {
     if (!recipients) return true;
