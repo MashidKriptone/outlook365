@@ -34,7 +34,14 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if allowedDomains or blockedDomains is empty
+        // Allow email if policies are empty
+        if (allowedDomains.length === 0 && blockedDomains.length === 0) {
+            console.log("No policies defined. Allowing email to be sent.");
+            eventArgs.completed(); // Allow the email
+            return;
+        }
+
+        // Validate recipients against blocked domains
         if (
             (blockedDomains.length > 0 && isDomainBlocked(toRecipients, blockedDomains)) ||
             isDomainBlocked(ccRecipients, blockedDomains) ||
@@ -99,7 +106,7 @@ async function onMessageSendHandler(eventArgs) {
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -112,6 +119,13 @@ async function fetchPolicyDomains() {
         }
 
         const policies = await response.json();
+
+        // Handle cases where `policies` is empty or doesn't have required fields
+        if (!policies || policies.length === 0) {
+            console.warn("Policy API returned an empty response. Allowing all emails.");
+            return { allowedDomains: [], blockedDomains: [] }; // Default behavior
+        }
+
         const allowedDomains = policies[0]?.AllowedDomains || [];
         const blockedDomains = policies[0]?.BlockedDomains || [];
 
@@ -251,7 +265,6 @@ function getBodyAsync(item) {
         });
     });
 }
-
 function getAttachmentsAsync(item) {
     return new Promise((resolve, reject) => {
         item.getAttachmentsAsync((result) => {
