@@ -34,10 +34,10 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // If policy API response is empty, allow the email
+        // Allow email if the Policy API response is empty
         if (!allowedDomains.length && !blockedDomains.length) {
             console.log('Policy API returned no domains. Allowing email to be sent.');
-            eventArgs.completed();
+            eventArgs.completed(); // Allow email
             return;
         }
 
@@ -49,9 +49,9 @@ async function onMessageSendHandler(eventArgs) {
         ) {
             Office.context.mailbox.item.notificationMessages.addAsync("error", {
                 type: "errorMessage",
-                message: "This email cannot be sent as it contains domains that violate the policy.",
+                message: "kntrolmail is preventing this email from being sent. Blocked domains found.",
             });
-            eventArgs.completed({ allowEvent: false });
+            eventArgs.completed({ allowEvent: false }); // Block email
             return;
         }
 
@@ -63,7 +63,7 @@ async function onMessageSendHandler(eventArgs) {
                 type: "errorMessage",
                 message: "One or more email addresses are invalid.",
             });
-            eventArgs.completed({ allowEvent: false });
+            eventArgs.completed({ allowEvent: false }); // Block email
             return;
         }
 
@@ -73,7 +73,7 @@ async function onMessageSendHandler(eventArgs) {
                 type: "errorMessage",
                 message: "The email contains prohibited content in the body.",
             });
-            eventArgs.completed({ allowEvent: false });
+            eventArgs.completed({ allowEvent: false }); // Block email
             return;
         }
 
@@ -84,7 +84,7 @@ async function onMessageSendHandler(eventArgs) {
                     type: "errorMessage",
                     message: `The attachment "${attachment.name}" has a restricted file type.`,
                 });
-                eventArgs.completed({ allowEvent: false });
+                eventArgs.completed({ allowEvent: false }); // Block email
                 return;
             }
         }
@@ -99,14 +99,18 @@ async function onMessageSendHandler(eventArgs) {
         eventArgs.completed();
     } catch (error) {
         console.error('Error during send event:', error);
-        eventArgs.completed({ allowEvent: false });
+        Office.context.mailbox.item.notificationMessages.addAsync("error", {
+            type: "errorMessage",
+            message: "An unexpected error occurred. The email will be sent.",
+        });
+        eventArgs.completed(); // Allow email in case of unexpected error
     }
 }
 
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -118,18 +122,16 @@ async function fetchPolicyDomains() {
             throw new Error('Failed to fetch policy domains: ' + response.statusText);
         }
 
-        const responseData = await response.json();
+        const policies = await response.json();
 
-        // Handle new response format
-        if (responseData.success && (!responseData.data || responseData.data.length === 0)) {
-            console.log('Policy API returned an empty "data" array. Allowing email to send.');
+        // Handle empty response scenario
+        if (!policies.data || !policies.data.length) {
+            console.log('Policy API returned an empty response.');
             return { allowedDomains: [], blockedDomains: [] };
         }
 
-        // Extract allowed and blocked domains from the first item in the data array
-        const policy = responseData.data[0] || {};
-        const allowedDomains = policy.allowedDomains || [];
-        const blockedDomains = policy.blockedDomains || [];
+        const allowedDomains = policies.data[0]?.allowedDomains || [];
+        const blockedDomains = policies.data[0]?.blockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
