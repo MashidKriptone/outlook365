@@ -34,14 +34,7 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if the Policy API response is empty
-        if (!allowedDomains.length && !blockedDomains.length) {
-            console.log('Policy API returned no domains. Allowing email to be sent.');
-            eventArgs.completed(); // Allow email
-            return;
-        }
-
-        // Block email if domains violate policy
+        // Allow email if allowedDomains or blockedDomains is empty
         if (
             (blockedDomains.length > 0 && isDomainBlocked(toRecipients, blockedDomains)) ||
             isDomainBlocked(ccRecipients, blockedDomains) ||
@@ -49,9 +42,9 @@ async function onMessageSendHandler(eventArgs) {
         ) {
             Office.context.mailbox.item.notificationMessages.addAsync("error", {
                 type: "errorMessage",
-                message: "kntrolmail is preventing this email from being sent. Blocked domains found.",
+                message: "This email cannot be sent as it contains domains that violate the policy.",
             });
-            eventArgs.completed({ allowEvent: false }); // Block email
+            eventArgs.completed({ allowEvent: false });
             return;
         }
 
@@ -63,7 +56,7 @@ async function onMessageSendHandler(eventArgs) {
                 type: "errorMessage",
                 message: "One or more email addresses are invalid.",
             });
-            eventArgs.completed({ allowEvent: false }); // Block email
+            eventArgs.completed({ allowEvent: false });
             return;
         }
 
@@ -73,7 +66,7 @@ async function onMessageSendHandler(eventArgs) {
                 type: "errorMessage",
                 message: "The email contains prohibited content in the body.",
             });
-            eventArgs.completed({ allowEvent: false }); // Block email
+            eventArgs.completed({ allowEvent: false });
             return;
         }
 
@@ -84,7 +77,7 @@ async function onMessageSendHandler(eventArgs) {
                     type: "errorMessage",
                     message: `The attachment "${attachment.name}" has a restricted file type.`,
                 });
-                eventArgs.completed({ allowEvent: false }); // Block email
+                eventArgs.completed({ allowEvent: false });
                 return;
             }
         }
@@ -99,11 +92,7 @@ async function onMessageSendHandler(eventArgs) {
         eventArgs.completed();
     } catch (error) {
         console.error('Error during send event:', error);
-        Office.context.mailbox.item.notificationMessages.addAsync("error", {
-            type: "errorMessage",
-            message: "An unexpected error occurred. The email will be sent.",
-        });
-        eventArgs.completed(); // Allow email in case of unexpected error
+        eventArgs.completed({ allowEvent: false });
     }
 }
 
@@ -124,10 +113,10 @@ async function fetchPolicyDomains() {
 
         const policies = await response.json();
 
-        // Handle empty response scenario
-        if (!policies.data || !policies.data.length) {
-            console.log('Policy API returned an empty response.');
-            return { allowedDomains: [], blockedDomains: [] };
+        // Check if data is empty
+        if (!policies.data || policies.data.length === 0) {
+            console.log('No policy defined. Allowing email to be sent.');
+            return { allowedDomains: [], blockedDomains: [] }; // No restrictions
         }
 
         const allowedDomains = policies.data[0]?.allowedDomains || [];
@@ -136,7 +125,7 @@ async function fetchPolicyDomains() {
         return { allowedDomains, blockedDomains };
     } catch (error) {
         console.error('Error fetching policy domains:', error);
-        return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
+        return { allowedDomains: [], blockedDomains: [] }; // Default to no restrictions
     }
 }
 
@@ -258,7 +247,6 @@ function getSubjectAsync(item) {
     });
 }
 
-
 function getBodyAsync(item) {
     return new Promise((resolve, reject) => {
         item.body.getAsync(Office.CoercionType.Text, (result) => {
@@ -270,6 +258,7 @@ function getBodyAsync(item) {
         });
     });
 }
+
 function getAttachmentsAsync(item) {
     return new Promise((resolve, reject) => {
         item.getAttachmentsAsync((result) => {
