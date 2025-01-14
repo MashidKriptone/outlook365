@@ -118,16 +118,18 @@ async function fetchPolicyDomains() {
             throw new Error('Failed to fetch policy domains: ' + response.statusText);
         }
 
-        const policies = await response.json();
+        const responseData = await response.json();
 
-        // Handle empty response scenario
-        if (!policies.length) {
-            console.log('Policy API returned an empty response.');
+        // Handle new response format
+        if (responseData.success && (!responseData.data || responseData.data.length === 0)) {
+            console.log('Policy API returned an empty "data" array. Allowing email to send.');
             return { allowedDomains: [], blockedDomains: [] };
         }
 
-        const allowedDomains = policies[0]?.AllowedDomains || [];
-        const blockedDomains = policies[0]?.BlockedDomains || [];
+        // Extract allowed and blocked domains from the first item in the data array
+        const policy = responseData.data[0] || {};
+        const allowedDomains = policy.allowedDomains || [];
+        const blockedDomains = policy.blockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
@@ -135,6 +137,7 @@ async function fetchPolicyDomains() {
         return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
     }
 }
+
 // Helper function to validate email addresses
 function validateEmailAddresses(recipients) {
     if (!recipients) return true;
@@ -252,6 +255,7 @@ function getSubjectAsync(item) {
         });
     });
 }
+
 
 function getBodyAsync(item) {
     return new Promise((resolve, reject) => {
