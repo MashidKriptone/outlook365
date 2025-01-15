@@ -37,6 +37,11 @@ async function onMessageSendHandler(eventArgs) {
         // Allow email if no policies are defined
         if (allowedDomains.length === 0 && blockedDomains.length === 0) {
             console.log("No domain policies defined. Allowing the email to be sent.");
+            console.log('Blocked Domains:', blockedDomains);
+            console.log('Allowed Domains:', allowedDomains);
+            console.log('To Recipients:', toRecipients);
+            console.log('CC Recipients:', ccRecipients);
+            console.log('BCC Recipients:', bccRecipients);
             eventArgs.completed(); // Allow the email to be sent
             return;
         }
@@ -56,11 +61,7 @@ async function onMessageSendHandler(eventArgs) {
             eventArgs.completed({ allowEvent: false });
             return;
         }
-        console.log('Blocked Domains:', blockedDomains);
-        console.log('Allowed Domains:', allowedDomains);
-        console.log('To Recipients:', toRecipients);
-        console.log('CC Recipients:', ccRecipients);
-        console.log('BCC Recipients:', bccRecipients);
+       
 
         // Validate email addresses
         if (!validateEmailAddresses(toRecipients) ||
