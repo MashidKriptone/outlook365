@@ -34,15 +34,24 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if allowedDomains or blockedDomains is empty
+        // Debug logs for fetched policies and recipients
+        console.log('Blocked Domains:', blockedDomains);
+        console.log('Allowed Domains:', allowedDomains);
+        console.log('To Recipients:', toRecipients);
+        console.log('CC Recipients:', ccRecipients);
+        console.log('BCC Recipients:', bccRecipients);
+
+        // Check blocked domains
         if (
-            (blockedDomains.length > 0 && isDomainBlocked(toRecipients, blockedDomains)) ||
-            isDomainBlocked(ccRecipients, blockedDomains) ||
-            isDomainBlocked(bccRecipients, blockedDomains)
+            blockedDomains.length > 0 && (
+                isDomainBlocked(toRecipients, blockedDomains) ||
+                isDomainBlocked(ccRecipients, blockedDomains) ||
+                isDomainBlocked(bccRecipients, blockedDomains)
+            )
         ) {
             Office.context.mailbox.item.notificationMessages.addAsync("error", {
                 type: "errorMessage",
-                message: "This email cannot be sent as it contains domains that violate the policy.",
+                message: "KntrolEMAIL is preventing this email from being sent due to a blocked domain policy.",
             });
             eventArgs.completed({ allowEvent: false });
             return;
@@ -113,14 +122,17 @@ async function fetchPolicyDomains() {
 
         const policies = await response.json();
 
+        // Debug log
+        console.log('Policy API response:', policies);
+
         // Check if data is empty
         if (!policies.data || policies.data.length === 0) {
-            console.log('No policy defined. Allowing email to be sent.');
+            console.log('No policies found. Allowing email to be sent.');
             return { allowedDomains: [], blockedDomains: [] }; // No restrictions
         }
 
-        const allowedDomains = policies.data[0]?.allowedDomains || [];
-        const blockedDomains = policies.data[0]?.blockedDomains || [];
+        const allowedDomains = policies.data[0]?.AllowedDomains || [];
+        const blockedDomains = policies.data[0]?.BlockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
@@ -129,7 +141,7 @@ async function fetchPolicyDomains() {
     }
 }
 
-// Helper function to validate email addresses
+// Helper functions for validation and domain checks
 function validateEmailAddresses(recipients) {
     if (!recipients) return true;
 
@@ -143,7 +155,6 @@ function validateEmailAddresses(recipients) {
     return true;
 }
 
-// Helper function to check if domains are blocked
 function isDomainBlocked(recipients, blockedDomains) {
     if (!blockedDomains || blockedDomains.length === 0) return false; // Allow by default if no blocked domains
 
@@ -160,7 +171,7 @@ function isDomainBlocked(recipients, blockedDomains) {
     return false;
 }
 
-// Helper function to prepare email data
+// Helper functions for preparing and saving email data
 function prepareEmailData(from, to, cc, bcc, subject, body, attachments) {
     let emailId = generateUUID();
     return {
@@ -182,7 +193,6 @@ function prepareEmailData(from, to, cc, bcc, subject, body, attachments) {
     };
 }
 
-// Helper function to save email data to the backend
 async function saveEmailData(emailData) {
     const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Email', {
         method: 'POST',
@@ -200,15 +210,7 @@ async function saveEmailData(emailData) {
     console.log('Email data saved successfully.');
 }
 
-// Helper function to generate a UUID
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
-// Async functions to retrieve email details
+// Helper functions to retrieve email details
 function getFromAsync(item) {
     return new Promise((resolve, reject) => {
         item.from.getAsync((result) => {
@@ -269,5 +271,13 @@ function getAttachmentsAsync(item) {
                 reject('Error retrieving attachments: ' + result.error.message);
             }
         });
+    });
+}
+
+// Helper function to generate a UUID
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
     });
 }
