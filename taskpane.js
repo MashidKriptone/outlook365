@@ -34,8 +34,8 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if no policies are defined or the data is null/empty
-        if (!allowedDomains || !blockedDomains || (allowedDomains.length === 0 && blockedDomains.length === 0)) {
+        // Allow email if no policies are defined
+        if (allowedDomains.length === 0 && blockedDomains.length === 0) {
             console.log("No domain policies defined. Allowing the email to be sent.");
             eventArgs.completed(); // Allow the email to be sent
             return;
@@ -43,7 +43,7 @@ async function onMessageSendHandler(eventArgs) {
 
         // Check blocked domains
         if (
-             (
+            blockedDomains.length > 0 && (
                 isDomainBlocked(toRecipients, blockedDomains) ||
                 isDomainBlocked(ccRecipients, blockedDomains) ||
                 isDomainBlocked(bccRecipients, blockedDomains)
@@ -56,6 +56,11 @@ async function onMessageSendHandler(eventArgs) {
             eventArgs.completed({ allowEvent: false });
             return;
         }
+        console.log('Blocked Domains:', blockedDomains);
+        console.log('Allowed Domains:', allowedDomains);
+        console.log('To Recipients:', toRecipients);
+        console.log('CC Recipients:', ccRecipients);
+        console.log('BCC Recipients:', bccRecipients);
 
         // Validate email addresses
         if (!validateEmailAddresses(toRecipients) ||
@@ -128,8 +133,8 @@ async function fetchPolicyDomains() {
             return { allowedDomains: [], blockedDomains: [] };
         }
 
-        const allowedDomains = policies?.AllowedDomains || [];
-        const blockedDomains = policies?.BlockedDomains || [];
+        const allowedDomains = policies[0]?.AllowedDomains || [];
+        const blockedDomains = policies[0]?.BlockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
