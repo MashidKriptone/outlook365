@@ -34,8 +34,8 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if no policies are defined
-        if (allowedDomains.length === 0 && blockedDomains.length === 0) {
+        // Allow email if no policies are defined or the data is null/empty
+        if (!allowedDomains || !blockedDomains || (allowedDomains.length === 0 && blockedDomains.length === 0)) {
             console.log("No domain policies defined. Allowing the email to be sent.");
             eventArgs.completed(); // Allow the email to be sent
             return;
@@ -43,7 +43,7 @@ async function onMessageSendHandler(eventArgs) {
 
         // Check blocked domains
         if (
-            blockedDomains.length > 0 && (
+             (
                 isDomainBlocked(toRecipients, blockedDomains) ||
                 isDomainBlocked(ccRecipients, blockedDomains) ||
                 isDomainBlocked(bccRecipients, blockedDomains)
@@ -84,7 +84,7 @@ async function onMessageSendHandler(eventArgs) {
             if (regexPatterns.attachmentName.test(attachment.name)) {
                 Office.context.mailbox.item.notificationMessages.addAsync("error", {
                     type: "errorMessage",
-                    message: `The attachment "${attachment.name}" has a restricted file type.`,
+                    message: `The attachment \"${attachment.name}\" has a restricted file type.`,
                 });
                 eventArgs.completed({ allowEvent: false });
                 return;
@@ -108,7 +108,7 @@ async function onMessageSendHandler(eventArgs) {
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -122,14 +122,14 @@ async function fetchPolicyDomains() {
 
         const policies = await response.json();
 
-        // Handle the case where the data array is empty
-        if (!policies.data || policies.data.length === 0) {
+        // Handle the case where the data array is empty or null
+        if (!policies || policies.length === 0) {
             console.log("No policies found. Allowing the email to be sent.");
             return { allowedDomains: [], blockedDomains: [] };
         }
 
-        const allowedDomains = policies.data[0]?.AllowedDomains || [];
-        const blockedDomains = policies.data[0]?.BlockedDomains || [];
+        const allowedDomains = policies?.AllowedDomains || [];
+        const blockedDomains = policies?.BlockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
