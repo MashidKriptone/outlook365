@@ -114,35 +114,35 @@ async function onMessageSendHandler(eventArgs) {
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-      const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-  
-      if (!response.ok) {
-        throw new Error('Failed to fetch policy domains: ' + response.statusText);
-      }
-  
-      const policies = await response.json();
-  
-      // Handle empty policy data or missing policy fields
-      if (!policies || policies.length === 0 || !policies[0]?.BlockedDomains) {
-        console.log("No blocked domains found in policy. Allowing the email to be sent.");
-        return { allowedDomains: [], blockedDomains: [] }; 
-      }
-  
-      const allowedDomains = policies[0]?.AllowedDomains || [];
-      const blockedDomains = policies[0]?.BlockedDomains || [];
-  
-      return { allowedDomains, blockedDomains };
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch policy domains: ' + response.statusText);
+        }
+
+        const policies = await response.json();
+
+        // Handle the case where the data array is empty or null
+        if (!policies || policies.length === 0) {
+            console.log("No policies found. Allowing the email to be sent.");
+            return { allowedDomains: [], blockedDomains: ['*'] };
+        }
+
+        const allowedDomains = policies[0]?.AllowedDomains || [];
+        const blockedDomains = policies[0]?.BlockedDomains || [];
+
+        return { allowedDomains, blockedDomains };
     } catch (error) {
-      console.error('Error fetching policy domains:', error);
-      return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
+        console.error('Error fetching policy domains:', error);
+        return { allowedDomains: [], blockedDomains: ['*'] }; // Default to empty arrays
     }
-  }
+}
 
 // Helper function to validate email addresses
 function validateEmailAddresses(recipients) {
@@ -160,19 +160,20 @@ function validateEmailAddresses(recipients) {
 
 // Helper function to check if domains are blocked
 function isDomainBlocked(recipients, blockedDomains) {
-    if (!blockedDomains || blockedDomains.length === 0) return false; 
-  
+    if (!blockedDomains || blockedDomains.length === 0) return false; // Allow by default if no blocked domains
+
     const recipientArray = recipients ? recipients.split(',').map(email => email.trim()) : [];
-  
+
     for (let recipient of recipientArray) {
-      const domain = recipient.split('@')[1]; 
-      if (blockedDomains.includes(domain)) { 
-        console.log(`Domain ${domain} is blocked.`);
-        return true;
-      }
+        const domain = recipient.split('@')[1]; // Extract the domain from the email
+
+        if (blockedDomains.includes(domain)) {
+            console.log(`Domain ${domain} is blocked.`);
+            return true;
+        }
     }
     return false;
-  }
+}
 
 // Helper function to prepare email data
 function prepareEmailData(from, to, cc, bcc, subject, body, attachments) {
