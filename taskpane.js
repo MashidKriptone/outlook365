@@ -131,7 +131,7 @@ async function fetchPolicyDomains() {
         // Handle the case where the data array is empty or null
         if (!policies || policies.length === 0) {
             console.log("No policies found. Allowing the email to be sent.");
-            return { allowedDomains: [], blockedDomains: [] };
+            return { allowedDomains: [], blockedDomains: ['*'] };
         }
 
         const allowedDomains = policies[0]?.AllowedDomains || [];
