@@ -140,7 +140,7 @@ async function fetchPolicyDomains() {
         return { allowedDomains, blockedDomains };
     } catch (error) {
         console.error('Error fetching policy domains:', error);
-        return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
+        return { allowedDomains: [], blockedDomains: ['*'] }; // Default to empty arrays
     }
 }
 
