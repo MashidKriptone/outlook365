@@ -114,7 +114,7 @@ async function onMessageSendHandler(eventArgs) {
 // Helper function to fetch policy domains from the backend
 async function fetchPolicyDomains() {
     try {
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
+        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Admin/policies', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -127,20 +127,13 @@ async function fetchPolicyDomains() {
         }
 
         const policies = await response.json();
-
-        // Handle the case where the data array is empty or null
-        if (!policies || policies.length === 0) {
-            console.log("No policies found. Allowing the email to be sent.");
-            return { allowedDomains: [], blockedDomains: ['*'] };
-        }
-
-        const allowedDomains = policies[0]?.AllowedDomains || [];
-        const blockedDomains = policies[0]?.BlockedDomains || [];
+        const allowedDomains = policies.data[0]?.allowedDomains || [];
+        const blockedDomains = policies.data[0]?.blockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
         console.error('Error fetching policy domains:', error);
-        return { allowedDomains: [], blockedDomains: ['*'] }; // Default to empty arrays
+        return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
     }
 }
 
