@@ -150,7 +150,26 @@ async function fetchPolicyDomains() {
         return { allowedDomains: [], blockedDomains: [] };
     }
 }
-
+function prepareEmailData(from, to, cc, bcc, subject, body, attachments) {
+    let emailId = generateUUID();
+    return {
+        Id: emailId,
+        FromEmailID: from,
+        Attachments: attachments.map(attachment => ({
+            Id: generateUUID(),
+            FileName: attachment.name,
+            FileType: attachment.attachmentType,
+            FileSize: attachment.size,
+            UploadTime: new Date().toISOString(),
+        })),
+        EmailBcc: bcc ? bcc.split(',').map(email => email.trim()) : [],
+        EmailCc: cc ? cc.split(',').map(email => email.trim()) : [],
+        EmailBody: body,
+        EmailSubject: subject,
+        EmailTo: to ? to.split(',').map(email => email.trim()) : [],
+        Timestamp: new Date().toISOString(),
+    };
+}
 // Save email data to the backend
 async function saveEmailData(emailData) {
     try {
@@ -223,5 +242,11 @@ function getBodyAsync(item) {
 function getAttachmentsAsync(item) {
     return new Promise((resolve, reject) => {
         item.getAttachmentsAsync(result => result.status === Office.AsyncResultStatus.Succeeded ? resolve(result.value) : reject(result.error));
+    });
+}
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
     });
 }
