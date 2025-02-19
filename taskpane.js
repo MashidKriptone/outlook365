@@ -34,46 +34,18 @@ async function onMessageSendHandler(eventArgs) {
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        // Allow email if no policies are defined
-        if (allowedDomains.length === 0 && blockedDomains.length === 0) {
-            console.log("No domain policies defined. Allowing the email to be sent.");
-            console.log('Blocked Domains:', blockedDomains);
-            console.log('Allowed Domains:', allowedDomains);
-            console.log('To Recipients:', toRecipients);
-            console.log('CC Recipients:', ccRecipients);
-            console.log('BCC Recipients:', bccRecipients);
-            eventArgs.completed(); // Allow the email to be sent
-            return;
-        }
+        if (isDomainBlockedOrAllowed(toRecipients, blockedDomains, allowedDomains) ||
+        isDomainBlockedOrAllowed(ccRecipients, blockedDomains, allowedDomains) ||
+        isDomainBlockedOrAllowed(bccRecipients, blockedDomains, allowedDomains)) {
 
-        // Check blocked domains
-        if (
-            blockedDomains.length > 0 && (
-                isDomainBlocked(toRecipients, blockedDomains) ||
-                isDomainBlocked(ccRecipients, blockedDomains) ||
-                isDomainBlocked(bccRecipients, blockedDomains)
-            )
-        ) {
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "KntrolEMAIL detected a blocked domain policy and prevented the email from being sent.",
-            });
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
-       
+        Office.context.mailbox.item.notificationMessages.addAsync("error", {
+            type: "errorMessage",
+            message: "This email cannot be sent as it contains blocked domains."
+        });
+        eventArgs.completed({ allowEvent: false });
+        return;
+    }
 
-        // Validate email addresses
-        if (!validateEmailAddresses(toRecipients) ||
-            !validateEmailAddresses(ccRecipients) ||
-            !validateEmailAddresses(bccRecipients)) {
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "One or more email addresses are invalid.",
-            });
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
 
         // Validate body content using regex
         if (regexPatterns.body.test(body)) {
@@ -118,8 +90,8 @@ async function fetchPolicyDomains() {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            },
+                'Accept': 'application/json'
+            }
         });
 
         if (!response.ok) {
@@ -127,13 +99,14 @@ async function fetchPolicyDomains() {
         }
 
         const policies = await response.json();
+
         const allowedDomains = policies.data[0]?.allowedDomains || [];
         const blockedDomains = policies.data[0]?.blockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
         console.error('Error fetching policy domains:', error);
-        return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
+        return { allowedDomains: [], blockedDomains: [] };
     }
 }
 
