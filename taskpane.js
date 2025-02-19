@@ -182,11 +182,15 @@ async function saveEmailData(emailData) {
             body: JSON.stringify(emailData),
         });
 
+        const responseBody = await response.json(); // Get full response
+        console.log('🔹 Server Response:', responseBody);
+
         if (!response.ok) {
             throw new Error('Failed to save email data: ' + response.statusText);
         }
 
-        console.log('✅ Email data saved successfully.');
+        console.log("✅ Email data saved successfully. Allowing email to be sent.");
+        eventArgs.completed({ allowEvent: true }); 
     } catch (error) {
         console.error('❌ Error saving email data:', error);
     }
