@@ -123,19 +123,23 @@ async function fetchPolicyDomains() {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch policy domains: ' + response.statusText);
+            console.warn('Policy API request failed. Allowing email by default.');
+            return { allowedDomains: [], blockedDomains: [] }; // Allow email if API fails
         }
 
         const policies = await response.json();
-        const allowedDomains = policies.data[0]?.allowedDomains || [];
-        const blockedDomains = policies.data[0]?.blockedDomains || [];
+        
+        // Ensure that allowedDomains and blockedDomains are arrays
+        const allowedDomains = policies.data?.[0]?.allowedDomains || [];
+        const blockedDomains = policies.data?.[0]?.blockedDomains || [];
 
         return { allowedDomains, blockedDomains };
     } catch (error) {
         console.error('Error fetching policy domains:', error);
-        return { allowedDomains: [], blockedDomains: [] }; // Default to empty arrays
+        return { allowedDomains: [], blockedDomains: [] }; // Allow email if API fails
     }
 }
+
 
 // Helper function to validate email addresses
 function validateEmailAddresses(recipients) {
