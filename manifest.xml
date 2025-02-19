@@ -9,7 +9,7 @@
   <Description DefaultValue="KntrolEMAIL Description" />
   <IconUrl DefaultValue="https://res.cloudinary.com/dlmk7wj21/image/upload/v1734500907/kriptone/spuiwroiynz0yj2fncug.png" />
   <HighResolutionIconUrl DefaultValue="https://res.cloudinary.com/dlmk7wj21/image/upload/v1722933834/kriptone/hv7of1kwodxidu8aov7x.png" />
-  <SupportUrl DefaultValue="https://kriptone.com" />
+  <SupportUrl DefaultValue="https://kriptone.com/contact-us" />
   <Hosts>
     <Host Name="Mailbox" />
   </Hosts>

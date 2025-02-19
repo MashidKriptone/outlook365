@@ -13,8 +13,19 @@ const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,3}$/;
 
 // Regex patterns for additional checks
 const regexPatterns = {
-    body: /\b(confidential|prohibited|restricted)\b/i, // Example sensitive keywords in the body
-    attachmentName: /\.(exe|bat|sh)$/i, // Example restricted file extensions
+    email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,3}$/, 
+    body: /\b(confidential|prohibited|restricted)\b/i,
+    attachmentName: /\.(exe|bat|sh)$/i,
+    imei: /[^\d](\d{15}|\d{2}\-\d{6}\-\d{6}\-\d)[^\d]/,
+    namesUSCensus: /[^\w]([A-Z][a-z]{1,12}(\s?,\s?|[\s]|\s([A-Z])\.\s)[A-Z][a-z]{1,12})[^\w]/,
+    swiftBIC: /[^\w-]([A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?)[^\w-]/,
+    timeZoneOffset: /[^\d]([-+](0[0-9]|1[0-2]):00|\+13:00|[+-]0[34]:30|\+0(5:(30|45)|9:30))[^\d]/,
+    ibanAndorra: /[^\w](AD\d{2}((\s\d{4}){2}(\s[a-zA-Z0-9]){3}|\d{8}[a-zA-Z0-9]{12}))[^\w]/,
+    taxFileNumber: /[^\w-.;&](\d{8,9})[^\w-.;&]/,
+    ibanAustria: /[^\w](AT\d{2}(\s(\d{4}\s){3}\d{4}|\d{16}))[^\w]/,
+    phoneAustria: /[^\d\-]((\+43[\s\-]|0)(\d{1,4}[\s\-]\d{3}[\s\-]\d{3}([\s\-]\d{3,6})?|\d{1,4}[\s\-]\d{3,12}))[^\d\-]/,
+    ssnAustria: /[^\w-.;&](\d{4}[0-3]\d(0[1-9]|1[0-2])\d{2})[^\w-.;&]/,
+    ibanAzerbaijan: /[^\w](AZ\d{2}(\s[A-Za-z0-9]{4}\s(\d{4}\s){4}\d{4}|[A-Za-z0-9]{4}\d{20}))[^\w]/,
 };
 
 // Event handler for the ItemSend event
@@ -74,29 +85,29 @@ async function onMessageSendHandler(eventArgs) {
         }
 
         // Validate body content
-        if (regexPatterns.body.test(body)) {
-            console.warn("❌ Prohibited content detected in the email body. Email is not sent.");
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "The email contains prohibited content in the body.",
-            });
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
-
-        // Validate attachments
-        for (const attachment of attachments) {
-            if (regexPatterns.attachmentName.test(attachment.name)) {
-                console.warn(`❌ Attachment ${attachment.name} is restricted. Email is not sent.`);
+        for (const pattern in regexPatterns) {
+            if (regexPatterns[pattern].test(body)) {
+                console.warn(`❌ Detected sensitive content: ${pattern}. Email not sent.`);
                 Office.context.mailbox.item.notificationMessages.addAsync("error", {
                     type: "errorMessage",
-                    message: `The attachment \"${attachment.name}\" has a restricted file type.`,
+                    message: `Your email contains restricted data: ${pattern}.`,
                 });
                 eventArgs.completed({ allowEvent: false });
                 return;
             }
         }
 
+        for (const attachment of attachments) {
+            if (regexPatterns.attachmentName.test(attachment.name)) {
+                console.warn(`❌ Restricted attachment: ${attachment.name}. Email not sent.`);
+                Office.context.mailbox.item.notificationMessages.addAsync("error", {
+                    type: "errorMessage",
+                    message: `Attachment "${attachment.name}" is restricted.`,
+                });
+                eventArgs.completed({ allowEvent: false });
+                return;
+            }
+        }
         console.log("✅ Passed all policy checks. Saving email data...");
 
         // Save email data to the backend
