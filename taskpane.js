@@ -71,10 +71,20 @@ async function onMessageSendHandler(eventArgs) {
             return;
         }
 
+        if (!toRecipients && !ccRecipients && !bccRecipients) {
+            console.warn("❌ No recipients found. Email is not sent.");
+            Office.context.mailbox.item.notificationMessages.addAsync("error", {
+                type: "errorMessage",
+                message: "Please add at least one recipient (To, CC, or BCC).",
+            });
+            eventArgs.completed({ allowEvent: false });
+            return;
+        }
+        
         // Validate email addresses
-        if (!validateEmailAddresses(toRecipients) ||
-            !validateEmailAddresses(ccRecipients) ||
-            !validateEmailAddresses(bccRecipients)) {
+        if ((toRecipients && !validateEmailAddresses(toRecipients)) ||
+            (ccRecipients && !validateEmailAddresses(ccRecipients)) ||
+            (bccRecipients && !validateEmailAddresses(bccRecipients))) {
             console.warn("❌ Invalid email addresses found. Email is not sent.");
             Office.context.mailbox.item.notificationMessages.addAsync("error", {
                 type: "errorMessage",
