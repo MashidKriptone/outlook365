@@ -13,7 +13,7 @@ const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,3}$/;
 
 // Regex patterns for additional checks
 const regexPatterns = {
-    email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,3}$/,
+    email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,3}$/, 
     body: /\b(confidential|prohibited|restricted)\b/i,
     attachmentName: /\.(exe|bat|sh)$/i,
     imei: /[^\d](\d{15}|\d{2}\-\d{6}\-\d{6}\-\d)[^\d]/,
@@ -59,8 +59,8 @@ async function onMessageSendHandler(eventArgs) {
         }
 
         // Check blocked domains
-        if (isDomainBlocked(toRecipients, blockedDomains) ||
-            isDomainBlocked(ccRecipients, blockedDomains) ||
+        if (isDomainBlocked(toRecipients, blockedDomains) || 
+            isDomainBlocked(ccRecipients, blockedDomains) || 
             isDomainBlocked(bccRecipients, blockedDomains)) {
             console.warn("❌ Blocked domain detected. Email is not sent.");
             Office.context.mailbox.item.notificationMessages.addAsync("error", {
@@ -80,7 +80,7 @@ async function onMessageSendHandler(eventArgs) {
             eventArgs.completed({ allowEvent: false });
             return;
         }
-
+        
         // Validate email addresses
         if ((toRecipients && !validateEmailAddresses(toRecipients)) ||
             (ccRecipients && !validateEmailAddresses(ccRecipients)) ||
@@ -89,28 +89,6 @@ async function onMessageSendHandler(eventArgs) {
             Office.context.mailbox.item.notificationMessages.addAsync("error", {
                 type: "errorMessage",
                 message: "One or more email addresses are invalid.",
-            });
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
-
-        // 🚨 Validate subject is not empty
-        if (!subject || subject.trim() === "") {
-            console.warn("❌ Empty subject detected. Email is not sent.");
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "Subject cannot be empty.",
-            });
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
-
-        // 🚨 Validate body is not empty
-        if (!body || body.trim() === "") {
-            console.warn("❌ Empty body detected. Email is not sent.");
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "Email body cannot be empty.",
             });
             eventArgs.completed({ allowEvent: false });
             return;
@@ -178,9 +156,9 @@ async function fetchPolicyDomains() {
         const json = await response.json();
         console.log("🔹 Raw API Response:", JSON.stringify(json, null, 2));
 
-        return {
-            allowedDomains: json.data[0]?.allowedDomains || [],
-            blockedDomains: json.data[0]?.blockedDomains || []
+        return { 
+            allowedDomains: json.data[0]?.allowedDomains || [], 
+            blockedDomains: json.data[0]?.blockedDomains || [] 
         };
     } catch (error) {
         console.error("❌ Error fetching policy domains:", error);
