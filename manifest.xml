@@ -6,7 +6,7 @@
   <ProviderName>Kriptone</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="KntrolEMAIL" />
-  <Description DefaultValue="KntrolEMAIL Description" />
+  <Description DefaultValue=" " />
   <IconUrl DefaultValue="https://res.cloudinary.com/dlmk7wj21/image/upload/v1734500907/kriptone/spuiwroiynz0yj2fncug.png" />
   <HighResolutionIconUrl DefaultValue="https://res.cloudinary.com/dlmk7wj21/image/upload/v1722933834/kriptone/hv7of1kwodxidu8aov7x.png" />
   <SupportUrl DefaultValue="https://kriptone.com/contact-us" />
