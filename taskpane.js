@@ -43,32 +43,26 @@ async function onMessageSendHandler(eventArgs) {
         const attachments = await getAttachmentsAsync(item);
 
         console.log("🔹 Email Details:");
-        console.log({ from, toRecipients, ccRecipients, bccRecipients, subject, body, attachments });
+        console.log("🔹 Email Details:", { from, toRecipients, ccRecipients, bccRecipients, subject, body, attachments });
 
         // Fetch policy domains
         const { allowedDomains, blockedDomains } = await fetchPolicyDomains();
 
-        console.log("🔹 Policy Check:");
-        console.log({ allowedDomains, blockedDomains });
+        console.log("🔹 Policy Check:", { allowedDomains, blockedDomains });
 
-        // Allow email if no policies are defined
-        if (allowedDomains.length === 0 && blockedDomains.length === 0) {
-            console.log("✅ No policy restrictions found. Email will be sent.");
-            eventArgs.completed({ allowEvent: true });
-            return;
-        }
-
-        // Check blocked domains
-        if (isDomainBlocked(toRecipients, blockedDomains) || 
-            isDomainBlocked(ccRecipients, blockedDomains) || 
-            isDomainBlocked(bccRecipients, blockedDomains)) {
-            console.warn("❌ Blocked domain detected. Email is not sent.");
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "KntrolEMAIL detected a blocked domain policy and prevented the email from being sent.",
-            });
-            eventArgs.completed({ allowEvent: false });
-            return;
+        // **1️⃣ If no domain restrictions exist, allow email to send**
+        const noDomainRestrictions = allowedDomains.length === 0 && blockedDomains.length === 0;
+        if (noDomainRestrictions) {
+            console.log("✅ No domain restrictions. Proceeding...");
+        } else {
+            // **2️⃣ Check if the email contains blocked domains**
+            if (isDomainBlocked(toRecipients, blockedDomains) || 
+                isDomainBlocked(ccRecipients, blockedDomains) || 
+                isDomainBlocked(bccRecipients, blockedDomains)) {
+                showOutlookNotification("Blocked Domain", "KntrolEMAIL detected a blocked domain policy and prevented the email from being sent.");
+                eventArgs.completed({ allowEvent: false });
+                return;
+            }
         }
 
         if (!toRecipients && !ccRecipients && !bccRecipients) {
@@ -80,62 +74,53 @@ async function onMessageSendHandler(eventArgs) {
             eventArgs.completed({ allowEvent: false });
             return;
         }
-        
-        // Validate email addresses
-        if ((toRecipients && !validateEmailAddresses(toRecipients)) ||
-            (ccRecipients && !validateEmailAddresses(ccRecipients)) ||
-            (bccRecipients && !validateEmailAddresses(bccRecipients))) {
-            console.warn("❌ Invalid email addresses found. Email is not sent.");
-            Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                type: "errorMessage",
-                message: "One or more email addresses are invalid.",
-            });
+        // **3️⃣ Validate email addresses**
+        if (!validateEmailAddresses(toRecipients) || 
+            !validateEmailAddresses(ccRecipients) || 
+            !validateEmailAddresses(bccRecipients)) {
+            showOutlookNotification("Invalid Email", "One or more email addresses are invalid.");
             eventArgs.completed({ allowEvent: false });
             return;
         }
 
-        // Validate body content
+        // **4️⃣ Validate body content**
         for (const pattern in regexPatterns) {
             if (regexPatterns[pattern].test(body)) {
-                console.warn(`❌ Detected sensitive content: ${pattern}. Email not sent.`);
-                Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                    type: "errorMessage",
-                    message: `Your email contains restricted data: ${pattern}.`,
-                });
+                showOutlookNotification("Restricted Content", `Your email contains restricted data: ${pattern}.`);
                 eventArgs.completed({ allowEvent: false });
                 return;
             }
         }
 
+        // **5️⃣ Validate attachments**
         for (const attachment of attachments) {
             if (regexPatterns.attachmentName.test(attachment.name)) {
-                console.warn(`❌ Restricted attachment: ${attachment.name}. Email not sent.`);
-                Office.context.mailbox.item.notificationMessages.addAsync("error", {
-                    type: "errorMessage",
-                    message: `Attachment "${attachment.name}" is restricted.`,
-                });
+                showOutlookNotification("Restricted Attachment", `Attachment "${attachment.name}" is restricted.`);
                 eventArgs.completed({ allowEvent: false });
                 return;
             }
         }
         console.log("✅ Passed all policy checks. Saving email data...");
 
-        // Save email data to the backend
+        // **6️⃣ Save email data to API before sending**
         const emailData = prepareEmailData(from, toRecipients, ccRecipients, bccRecipients, subject, body, attachments);
         const saveSuccess = await saveEmailData(emailData);
 
-        if (saveSuccess) {
+        if (saveSuccess.success) {
             console.log("✅ Email data saved. Ensuring email is sent.");
             eventArgs.completed({ allowEvent: true });
         } else {
-            console.warn("❌ Email saving failed. Blocking email.");
+            console.warn("❌ Email saving failed:", saveSuccess.message);
+            showOutlookNotification("Error", saveSuccess.message || "Email saving failed due to a backend error.");
             eventArgs.completed({ allowEvent: false });
         }
 
     } catch (error) {
         console.error('❌ Error during send event:', error);
+        showOutlookNotification("Error", "An unexpected error occurred while sending the email.");
         eventArgs.completed({ allowEvent: false });
     }
+    
 }
 
 // Fetch policy domains from the backend
@@ -166,7 +151,6 @@ async function fetchPolicyDomains() {
     }
 }
 
-// Save email data to the backend
 async function saveEmailData(emailData) {
     try {
         const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Email', {
@@ -175,17 +159,18 @@ async function saveEmailData(emailData) {
             body: JSON.stringify(emailData),
         });
 
-        if (!response.ok) {
-            throw new Error(`Failed to save email: ${response.status} ${response.statusText}`);
-        }
+        const json = await response.json();
 
-        const responseBody = await response.json();
-        console.log("🔹 Server Response:", JSON.stringify(responseBody, null, 2));
-
-        return true;
+        return {
+            success: response.ok && json.success,
+            message: json.message || "Unknown error",
+        };
     } catch (error) {
         console.error("❌ Error saving email data:", error);
-        return false;
+        return {
+            success: false,
+            message: "Unable to connect to the server. Please try again later.",
+        };
     }
 }
 
@@ -264,5 +249,12 @@ function getBodyAsync(item) {
 function getAttachmentsAsync(item) {
     return new Promise((resolve, reject) => {
         item.getAttachmentsAsync(result => result.status === Office.AsyncResultStatus.Succeeded ? resolve(result.value) : reject(result.error));
+    });
+}
+
+function showOutlookNotification(title, message) {
+    Office.context.mailbox.item.notificationMessages.addAsync("error", {
+        type: "errorMessage",
+        message: `${title}: ${message}`,
     });
 }
