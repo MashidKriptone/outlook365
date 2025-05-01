@@ -5,6 +5,7 @@
     <title>KntrolEMAIL</title>
     <link rel="stylesheet" href="taskpane.css">
     <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script src="https://alcdn.msauth.net/browser/2.24.0/js/msal-browser.min.js"></script>
 </head>
 <body>
     <h2 class="ms-font-xl"><span class="kntrol">Kntrol</span><span class="email">EMAIL</span></h2>    
@@ -15,6 +16,21 @@
         <li>Ensures compliance with organizational email policies.</li>
         <li>Works seamlessly within Microsoft Outlook.</li>
     </ul>
+
+    <!-- Sign In Button -->
+    <button id="signInButton">Sign In</button>
+    <button id="signOutButton" style="display:none;">Sign Out</button>
+    <div id="loader" style="display: none;">
+        <div class="loader-container">
+            <div class="loader-spinner"></div>
+            <div class="loader-steps">
+                <p id="step1" class="loader-step">🔄 Checking Policy...</p>
+                <p id="step2" class="loader-step">🧠 Validating Email...</p>
+                <p id="step3" class="loader-step">🔐 Encrypting...</p>
+                <p id="step4" class="loader-step">📤 Sending Email...</p>
+            </div>
+        </div>
+    </div>
     <script src="taskpane.js"></script>
 </body>
 </html>
