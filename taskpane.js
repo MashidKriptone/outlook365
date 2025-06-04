@@ -110,7 +110,7 @@ async function onMessageSendHandler(eventArgs) {
         console.log('⚖️ Fetching policy settings...');
         let policy;
         try {
-            policy = await fetchPolicyDomains(token);
+            policy = await fetchPolicyDomains(token,from);
             console.log('ℹ️ Policy settings:', {
                 allowedDomains: policy.allowedDomains?.length || 0,
                 blockedDomains: policy.blockedDomains?.length || 0,
@@ -456,10 +456,10 @@ async function getUserDetails(accessToken) {
 }
 
 // Fetch policy domains from the backend with robust error handling
-async function fetchPolicyDomains(token) {
+async function fetchPolicyDomains(token,from) {
     try {
         console.log('🔍 Fetching policy from API...');
-        const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Policy', {
+        const response = await fetch(`https://kntrolemail.kriptone.com:6677/api/Policy/GetPolicyByEmailAsync/${from}`, {
             method: 'GET',
             headers: { 
                 'Content-Type': 'application/json', 
