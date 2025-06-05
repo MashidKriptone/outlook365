@@ -764,15 +764,16 @@ async function showOutlookNotification(title, message) {
         message: `${title}: ${message}`,
     });
 }
+// For success messages
 async function showSuccessNotification(message) {
     try {
-        await Office.context.mailbox.item.notificationMessages.addAsync("success", {
+        await Office.context.mailbox.item.notificationMessages.addAsync("success-notification", {
             type: "informationalMessage",
             message: `Success: ${message}`
         });
-        console.log(`✅ Success notification shown: ${message}`);
+        console.log(`Success shown: ${message}`);
     } catch (error) {
-        console.error("❌ Failed to show success notification:", error);
+        console.error("Failed to show success notification:", error);
     }
 }
 
