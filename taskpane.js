@@ -789,7 +789,7 @@ async function showOutlookNotification(title, message) {
     });
 }
 async function showOutlookNotification1(title, message) {
-    Office.context.mailbox.item.notificationMessages.addAsync("error", {
+    Office.context.mailbox.item.notificationMessages.addAsync("success", {
         type: "success",
         message: `${title}: ${message}`,
     });
