@@ -270,7 +270,7 @@ async function onMessageSendHandler(eventArgs) {
 
         // 14. All checks passed - allow the email to send
         console.log('✅ All checks passed - allowing send');
-        await showOutlookNotification("Success", "Email sent successfully.");
+        await showOutlookNotification1("Success", "Email sent successfully.");
         eventArgs.completed({ allowEvent: true });
 
     } catch (error) {
@@ -781,13 +781,19 @@ function getAttachmentsAsync(item) {
     });
 }
 
+
 async function showOutlookNotification(title, message) {
     Office.context.mailbox.item.notificationMessages.addAsync("error", {
         type: "errorMessage",
         message: `${title}: ${message}`,
     });
 }
-
+async function showOutlookNotification1(title, message) {
+    Office.context.mailbox.item.notificationMessages.addAsync("error", {
+        type: "success",
+        message: `${title}: ${message}`,
+    });
+}
 // MSAL Configuration
 const msalConfig = {
     auth: {
