@@ -124,57 +124,87 @@ async function onMessageSendHandler(eventArgs) {
             console.warn('⚠️ Allowing send due to policy fetch failure');
         }
 
-        // 8. Apply domain restrictions if policy exists
-        if (policy && (policy.allowedDomains?.length > 0 || policy.blockedDomains?.length > 0)) {
-            console.log('🔒 Applying domain restrictions...');
-            const domainCheckResult = checkDomainRestrictions(
-                toRecipients,
-                ccRecipients,
-                bccRecipients,
-                policy.allowedDomains,
-                policy.blockedDomains
+       // 8. Apply domain restrictions if policy exists
+    if (policy) {
+        console.log('🔒 Applying domain restrictions...');
+        const domainCheckResult = checkDomainRestrictions(
+            toRecipients,
+            ccRecipients,
+            bccRecipients,
+            policy.allowedDomains,
+            policy.blockedDomains
+        );
+
+        if (domainCheckResult.blocked) {
+            console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
+            await showOutlookNotification(
+                "Blocked Domain",
+                `Cannot send to ${domainCheckResult.domain} per company policy`
             );
-
-            if (domainCheckResult.blocked) {
-                console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
-                await showOutlookNotification(
-                    "Blocked Domain",
-                    `Cannot send to ${domainCheckResult.domain} per company policy`
-                );
-                eventArgs.completed({ allowEvent: false });
-                return;
-            }
+            eventArgs.completed({ allowEvent: false });
+            return;
         }
 
-        // 9. Content scanning if enabled
-        if (policy?.contentScanning) {
-            console.log('🔎 Scanning email content...');
-            const contentScanResult = scanContent(body, subject, attachments);
-            if (contentScanResult.found) {
-                console.warn(`❌ Restricted content found: ${contentScanResult.type}`);
-                await showOutlookNotification(
-                    "Restricted Content",
-                    `Cannot send: Email contains restricted ${contentScanResult.type}`
-                );
-                eventArgs.completed({ allowEvent: false });
-                return;
-            }
+        // Check if domain requires encryption
+        const requiresEncryption = policy.alwaysEncryptDomains.some(domain => 
+            [...toRecipients.split(','), ...ccRecipients.split(','), ...bccRecipients.split(',')]
+                .some(email => email.trim().endsWith(`@${domain}`))
+        );
+        
+        if (requiresEncryption) {
+            policy.encryptOutgoingEmails = true;
+            policy.encryptOutgoingAttachments = true;
         }
+    }
 
-        // 10. Attachment policy checks
-        if (policy?.attachmentPolicy && attachments?.length > 0) {
-            console.log('📎 Checking attachments...');
-            const attachmentCheckResult = checkAttachments(attachments, policy.blockedAttachments);
-            if (attachmentCheckResult.blocked) {
-                console.warn(`❌ Blocked attachment: ${attachmentCheckResult.filename}`);
-                await showOutlookNotification(
-                    "Restricted Attachment",
-                    `Cannot send: Attachment "${attachmentCheckResult.filename}" is restricted`
-                );
-                eventArgs.completed({ allowEvent: false });
-                return;
-            }
+    // 9. Content scanning if enabled
+    if (policy?.contentScanning) {
+        console.log('🔎 Scanning email content...');
+        const contentScanResult = scanContent(body, subject, attachments, policy.regexPatterns);
+        if (contentScanResult.found) {
+            console.warn(`❌ Restricted content found: ${contentScanResult.type}`);
+            await showOutlookNotification(
+                "Restricted Content",
+                `Cannot send: Email contains restricted ${contentScanResult.type}`
+            );
+            eventArgs.completed({ allowEvent: false });
+            return;
         }
+    }
+
+    // 10. Attachment policy checks
+    if (policy?.attachmentPolicy && attachments?.length > 0) {
+        console.log('📎 Checking attachments...');
+        
+        // Check attachment size
+        const sizeExceeded = attachments.some(att => 
+            att.size > (policy.maxAttachmentSizeMB * 1024 * 1024)
+        );
+        if (sizeExceeded) {
+            await showOutlookNotification(
+                "Attachment Too Large",
+                `Attachments exceed maximum size of ${policy.maxAttachmentSizeMB}MB`
+            );
+            eventArgs.completed({ allowEvent: false });
+            return;
+        }
+        
+        // Check blocked attachment types
+        const attachmentCheckResult = checkAttachments(
+            attachments, 
+            policy.blockedAttachments,
+            policy.allowedAttachments
+        );
+        if (attachmentCheckResult.blocked) {
+            console.warn(`❌ Blocked attachment: ${attachmentCheckResult.filename}`);
+            await showOutlookNotification(
+                "Restricted Attachment",
+                `Cannot send: ${attachmentCheckResult.reason}`
+            );
+            eventArgs.completed({ allowEvent: false });
+            return;
+        }
+    }
 
         // 11. Prepare email data for API
         console.log('📦 Preparing email data for API...');
@@ -320,10 +350,11 @@ function checkDomainRestrictions(to, cc, bcc, allowedDomains, blockedDomains) {
 function scanContent(body, subject, attachments) {
     const textToScan = `${subject} ${body}`.toLowerCase();
 
-    // Check each regex pattern
-    for (const [type, pattern] of Object.entries(regexPatterns)) {
-        if (pattern.test(textToScan)) {
-            return { found: true, type };
+    // Check custom regex patterns from policy
+    for (const pattern of customPatterns) {
+        const regex = new RegExp(pattern, 'i');
+        if (regex.test(textToScan)) {
+            return { found: true, type: 'custom policy violation' };
         }
     }
 
@@ -337,18 +368,6 @@ function scanContent(body, subject, attachments) {
     return { found: false };
 }
 
-/**
- * Checks attachments against blocked types
- */
-function checkAttachments(attachments, blockedTypes = []) {
-    for (const attachment of attachments) {
-        const ext = attachment.name.split('.').pop().toLowerCase();
-        if (blockedTypes.includes(ext)) {
-            return { blocked: true, filename: attachment.name };
-        }
-    }
-    return { blocked: false };
-}
 
 /**
  * Updates the email with encrypted content
@@ -448,66 +467,77 @@ async function fetchPolicyDomains(token, from) {
             },
         });
 
-        // First check if the response exists and is OK
-        if (!response) {
-            throw new Error('No response received from policy API');
-        }
-
         if (!response.ok) {
             const errorText = await response.text();
             throw new Error(`Policy API responded with status ${response.status}: ${errorText}`);
         }
 
-        // Try to parse JSON
-        let json;
-        try {
-            json = await response.json();
-            console.log("🔹 Raw API Response:", JSON.stringify(json, null, 2));
-        } catch (parseError) {
-            throw new Error(`Failed to parse policy API response: ${parseError.message}`);
-        }
+        const policy = await response.json();
+        console.log("🔹 Policy Response:", policy);
 
-        // Handle empty array response
-        if (!json || !Array.isArray(json) || json.length === 0) {
-            console.warn('⚠️ Policy API returned empty array, using default policy');
-            return getDefaultPolicy();
-        }
-
-        // Safely extract the first policy with fallbacks
-        const policy = json[0] || {};
-
-        // Validate and normalize the policy structure
+        // Map the API response to our expected format
         return {
-            allowedDomains: Array.isArray(policy.allowedDomains) ? policy.allowedDomains : [],
-            blockedDomains: Array.isArray(policy.blockedDomains) ? policy.blockedDomains : [],
-            contentScanning: Boolean(policy.contentScanning),
-            attachmentPolicy: Boolean(policy.attachmentPolicy),
-            blockedAttachments: Array.isArray(policy.blockedAttachments) ? policy.blockedAttachments : [],
-            encryptOutgoingEmails: Boolean(policy.encryptOutgoingEmails),
-            encryptOutgoingAttachments: Boolean(policy.encryptOutgoingAttachments)
+            allowedDomains: policy.DomainPolicy?.AllowedDomains || [],
+            blockedDomains: policy.DomainPolicy?.BlockedDomains || [],
+            alwaysEncryptDomains: policy.DomainPolicy?.AlwaysEncryptDomains || [],
+            contentScanning: policy.RegexPolicy?.ContentScanning || false,
+            attachmentPolicy: policy.AttachmentPolicy?.UseAllowedAttachments || false,
+            blockedAttachments: policy.AttachmentPolicy?.BlockedAttachments || [],
+            allowedAttachments: policy.AttachmentPolicy?.AllowedAttachments || [],
+            maxAttachmentSizeMB: policy.AttachmentPolicy?.MaxAttachmentSizeMB || 10,
+            encryptOutgoingEmails: policy.EncryptionPolicy?.EncryptOutgoingEmails || false,
+            encryptOutgoingAttachments: policy.AttachmentPolicy?.EncryptOutgoingAttachments || false,
+            irmPolicy: policy.IRMPolicy || null,
+            regexPatterns: policy.RegexPolicy?.CustomRegexPatterns || []
         };
 
     } catch (error) {
-        console.error("❌ Error fetching policy:", {
-            error: error.message,
-            stack: error.stack
-        });
-
-        // Return a default policy that's secure but permissive enough
+        console.error("❌ Error fetching policy:", error);
         return getDefaultPolicy();
     }
 }
 
 // Default policy to use when API fails or returns empty
+function checkAttachments(attachments, blockedTypes = [], allowedTypes = []) {
+    for (const attachment of attachments) {
+        const ext = attachment.name.split('.').pop().toLowerCase();
+        
+        // Check blocked extensions
+        if (blockedTypes.includes(`.${ext}`)) {
+            return { 
+                blocked: true, 
+                filename: attachment.name,
+                reason: `Attachment type .${ext} is blocked by policy`
+            };
+        }
+        
+        // Check if using allow list and attachment not in it
+        if (allowedTypes.length > 0 && !allowedTypes.includes(`.${ext}`)) {
+            return { 
+                blocked: true, 
+                filename: attachment.name,
+                reason: `Attachment type .${ext} is not allowed by policy`
+            };
+        }
+    }
+    return { blocked: false };
+}
+
+// Update the getDefaultPolicy function
 function getDefaultPolicy() {
     return {
-        allowedDomains: [], // Empty means no domain restrictions
-        blockedDomains: [], // Empty means no blocked domains
-        contentScanning: true, // Enable content scanning by default for safety
-        attachmentPolicy: true, // Enable attachment policy by default
-        blockedAttachments: ['exe', 'bat', 'sh', 'dll', 'msi'], // Common dangerous extensions
-        encryptOutgoingEmails: false, // Disable by default to avoid blocking emails
-        encryptOutgoingAttachments: false // Disable by default
+        allowedDomains: [],
+        blockedDomains: [],
+        alwaysEncryptDomains: [],
+        contentScanning: true,
+        attachmentPolicy: true,
+        blockedAttachments: ['.exe','.bat','.sh','.dll','.msi'],
+        allowedAttachments: [],
+        maxAttachmentSizeMB: 10,
+        encryptOutgoingEmails: false,
+        encryptOutgoingAttachments: false,
+        irmPolicy: null,
+        regexPatterns: []
     };
 }
 async function getEncryptedEmail(emailDataDto, token) {
