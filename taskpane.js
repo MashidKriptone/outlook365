@@ -124,30 +124,35 @@ async function onMessageSendHandler(eventArgs) {
             console.warn('⚠️ Allowing send due to policy fetch failure');
         }
 
-       // 8. Apply domain restrictions if policy exists
+        // 8. Apply domain restrictions if policy exists
     if (policy) {
         console.log('🔒 Applying domain restrictions...');
-        const domainCheckResult = checkDomainRestrictions(
-            toRecipients,
-            ccRecipients,
-            bccRecipients,
-            policy.allowedDomains,
-            policy.blockedDomains
-        );
-
-        if (domainCheckResult.blocked) {
-            console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
-            await showOutlookNotification(
-                "Blocked Domain",
-                `Cannot send to ${domainCheckResult.domain} per company policy`
+        
+        // Check if domain restrictions are enabled
+        if (policy.useAllowedDomains || policy.blockedDomains.length > 0) {
+            const domainCheckResult = checkDomainRestrictions(
+                toRecipients,
+                ccRecipients,
+                bccRecipients,
+                policy.allowedDomains,
+                policy.blockedDomains,
+                policy.useAllowedDomains
             );
-            eventArgs.completed({ allowEvent: false });
-            return;
+
+            if (domainCheckResult.blocked) {
+                console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
+                await showOutlookNotification(
+                    "Blocked Domain",
+                    `Cannot send to ${domainCheckResult.domain} per company policy`
+                );
+                eventArgs.completed({ allowEvent: false });
+                return;
+            }
         }
 
         // Check if domain requires encryption
         const requiresEncryption = policy.alwaysEncryptDomains.some(domain => 
-            [...toRecipients.split(','), ...ccRecipients.split(','), ...bccRecipients.split(',')]
+            getAllRecipients(toRecipients, ccRecipients, bccRecipients)
                 .some(email => email.trim().endsWith(`@${domain}`))
         );
         
@@ -160,7 +165,13 @@ async function onMessageSendHandler(eventArgs) {
     // 9. Content scanning if enabled
     if (policy?.contentScanning) {
         console.log('🔎 Scanning email content...');
-        const contentScanResult = scanContent(body, subject, attachments, policy.regexPatterns);
+        const contentScanResult = scanContent(
+            body, 
+            subject, 
+            attachments, 
+            policy.customRegexPatterns, 
+            policy.sensitiveKeywords
+        );
         if (contentScanResult.found) {
             console.warn(`❌ Restricted content found: ${contentScanResult.type}`);
             await showOutlookNotification(
@@ -193,7 +204,8 @@ async function onMessageSendHandler(eventArgs) {
         const attachmentCheckResult = checkAttachments(
             attachments, 
             policy.blockedAttachments,
-            policy.allowedAttachments
+            policy.allowedAttachments,
+            policy.requirePasswordProtectedAttachments
         );
         if (attachmentCheckResult.blocked) {
             console.warn(`❌ Blocked attachment: ${attachmentCheckResult.filename}`);
@@ -317,44 +329,56 @@ function validateEmailRecipients(to, cc, bcc) {
     return validate(to) && validate(cc) && validate(bcc);
 }
 
-/**
- * Checks domain restrictions against policy
- */
-function checkDomainRestrictions(to, cc, bcc, allowedDomains, blockedDomains) {
-    const allRecipients = [
-        ...(to ? to.split(',') : []),
-        ...(cc ? cc.split(',') : []),
-        ...(bcc ? bcc.split(',') : [])
-    ].map(e => e.trim());
+function getAllRecipients(to, cc, bcc) {
+    return [
+        ...(to ? to.split(',').filter(e => e.trim()) : []),
+        ...(cc ? cc.split(',').filter(e => e.trim()) : []),
+        ...(bcc ? bcc.split(',').filter(e => e.trim()) : [])
+    ];
+}
+
+// Update checkDomainRestrictions to handle allow/block lists
+function checkDomainRestrictions(to, cc, bcc, allowedDomains, blockedDomains, useAllowList) {
+    const allRecipients = getAllRecipients(to, cc, bcc);
 
     for (const email of allRecipients) {
-        const domain = email.split('@')[1];
+        const domain = email.split('@')[1]?.toLowerCase();
+        if (!domain) continue;
 
-        // Check blocked domains first
-        if (blockedDomains?.includes(domain)) {
-            return { blocked: true, domain };
+        // Check against block list first
+        if (blockedDomains.includes(domain)) {
+            return { blocked: true, domain, reason: 'blocked by policy' };
         }
 
-        // If allowed domains exist, enforce whitelist
-        if (allowedDomains?.length > 0 && !allowedDomains.includes(domain)) {
-            return { blocked: true, domain };
+        // Check against allow list if enabled
+        if (useAllowList && !allowedDomains.includes(domain)) {
+            return { blocked: true, domain, reason: 'not in allowed domains' };
         }
     }
 
     return { blocked: false };
 }
 
-/**
- * Scans email content for restricted patterns
- */
-function scanContent(body, subject, attachments) {
+
+function scanContent(body, subject, attachments, customPatterns = [], keywords = []) {
     const textToScan = `${subject} ${body}`.toLowerCase();
 
     // Check custom regex patterns from policy
     for (const pattern of customPatterns) {
-        const regex = new RegExp(pattern, 'i');
-        if (regex.test(textToScan)) {
-            return { found: true, type: 'custom policy violation' };
+        try {
+            const regex = new RegExp(pattern, 'i');
+            if (regex.test(textToScan)) {
+                return { found: true, type: 'custom policy violation' };
+            }
+        } catch (e) {
+            console.warn('Invalid regex pattern:', pattern);
+        }
+    }
+
+    // Check sensitive keywords
+    for (const keyword of keywords) {
+        if (textToScan.includes(keyword.toLowerCase())) {
+            return { found: true, type: `sensitive keyword: ${keyword}` };
         }
     }
 
@@ -453,7 +477,7 @@ async function getUserDetails(accessToken) {
     }
 }
 
-// Fetch policy domains from the backend with robust error handling
+// Update the fetchPolicyDomains function to match the new response structure
 async function fetchPolicyDomains(token, from) {
     try {
         console.log('🔍 Fetching policy from API...');
@@ -472,23 +496,62 @@ async function fetchPolicyDomains(token, from) {
             throw new Error(`Policy API responded with status ${response.status}: ${errorText}`);
         }
 
-        const policy = await response.json();
+        const responseData = await response.json();
+        
+        // Check if the response contains the data object
+        if (!responseData.success || !responseData.data) {
+            throw new Error('Invalid policy API response structure');
+        }
+
+        const policy = responseData.data;
         console.log("🔹 Policy Response:", policy);
 
         // Map the API response to our expected format
         return {
-            allowedDomains: policy.DomainPolicy?.AllowedDomains || [],
-            blockedDomains: policy.DomainPolicy?.BlockedDomains || [],
-            alwaysEncryptDomains: policy.DomainPolicy?.AlwaysEncryptDomains || [],
-            contentScanning: policy.RegexPolicy?.ContentScanning || false,
-            attachmentPolicy: policy.AttachmentPolicy?.UseAllowedAttachments || false,
-            blockedAttachments: policy.AttachmentPolicy?.BlockedAttachments || [],
-            allowedAttachments: policy.AttachmentPolicy?.AllowedAttachments || [],
-            maxAttachmentSizeMB: policy.AttachmentPolicy?.MaxAttachmentSizeMB || 10,
-            encryptOutgoingEmails: policy.EncryptionPolicy?.EncryptOutgoingEmails || false,
-            encryptOutgoingAttachments: policy.AttachmentPolicy?.EncryptOutgoingAttachments || false,
-            irmPolicy: policy.IRMPolicy || null,
-            regexPatterns: policy.RegexPolicy?.CustomRegexPatterns || []
+            // Basic policy info
+            policyName: policy.policyName || 'Default Policy',
+            isEnabled: policy.isEnabled !== false, // Default to true if not specified
+            enableIRM: policy.enableIRM === true,
+            enableLogging: policy.enableLogging === true,
+
+            // Domain policy
+            allowedDomains: policy.domainPolicy?.allowedDomains || [],
+            blockedDomains: policy.domainPolicy?.blockedDomains || [],
+            alwaysEncryptDomains: policy.domainPolicy?.alwaysEncryptDomains || [],
+            useAllowedDomains: policy.domainPolicy?.useAllowedDomains === true,
+
+            // Attachment policy
+            attachmentPolicy: policy.attachmentPolicy?.useAllowedAttachments === true,
+            allowedAttachments: policy.attachmentPolicy?.allowedAttachments || [],
+            blockedAttachments: policy.attachmentPolicy?.blockedAttachments || [],
+            maxAttachmentSizeMB: policy.attachmentPolicy?.maxAttachmentSizeMB || 10,
+            encryptOutgoingAttachments: policy.attachmentPolicy?.encryptOutgoingAttachments === true,
+            requirePasswordProtectedAttachments: policy.attachmentPolicy?.requirePasswordProtectedAttachments === true,
+
+            // Regex/content scanning
+            contentScanning: policy.regexPolicy?.contentScanning === true,
+            customRegexPatterns: policy.regexPolicy?.customRegexPatterns || [],
+            sensitiveKeywords: policy.regexPolicy?.sensitiveKeywords || [],
+
+            // Encryption policy
+            encryptOutgoingEmails: policy.encryptionPolicy?.encryptOutgoingEmails === true,
+            enableEncryption: policy.encryptionPolicy?.enableEncryption === true,
+
+            // IRM policy
+            irmPolicy: policy.irmPolicy ? {
+                expiryDate: policy.irmPolicy.expiryDate,
+                maxOpenCount: policy.irmPolicy.maxOpenCount,
+                maxFailedAttempts: policy.irmPolicy.maxFailedAttempts,
+                lockOnFailure: policy.irmPolicy.lockOnFailure === true,
+                blockCopy: policy.irmPolicy.blockCopy === true,
+                blockPrint: policy.irmPolicy.blockPrint === true,
+                blockSaveAs: policy.irmPolicy.blockSaveAs === true,
+                blockEdit: policy.irmPolicy.blockEdit === true,
+                blockScreenCapture: policy.irmPolicy.blockScreenCapture === true,
+                allowedUsers: policy.irmPolicy.allowedUsers || [],
+                allowedLocations: policy.irmPolicy.allowedLocations || [],
+                blockedLocations: policy.irmPolicy.blockedLocations || []
+            } : null
         };
 
     } catch (error) {
@@ -498,25 +561,34 @@ async function fetchPolicyDomains(token, from) {
 }
 
 // Default policy to use when API fails or returns empty
-function checkAttachments(attachments, blockedTypes = [], allowedTypes = []) {
+function checkAttachments(attachments, blockedTypes = [], allowedTypes = [], requirePassword = false) {
     for (const attachment of attachments) {
-        const ext = attachment.name.split('.').pop().toLowerCase();
+        const ext = `.${attachment.name.split('.').pop().toLowerCase()}`;
         
         // Check blocked extensions
-        if (blockedTypes.includes(`.${ext}`)) {
+        if (blockedTypes.includes(ext)) {
             return { 
                 blocked: true, 
                 filename: attachment.name,
-                reason: `Attachment type .${ext} is blocked by policy`
+                reason: `Attachment type ${ext} is blocked by policy`
             };
         }
         
         // Check if using allow list and attachment not in it
-        if (allowedTypes.length > 0 && !allowedTypes.includes(`.${ext}`)) {
+        if (allowedTypes.length > 0 && !allowedTypes.includes(ext)) {
             return { 
                 blocked: true, 
                 filename: attachment.name,
-                reason: `Attachment type .${ext} is not allowed by policy`
+                reason: `Attachment type ${ext} is not allowed by policy`
+            };
+        }
+
+        // Check for password protection requirement
+        if (requirePassword && !attachment.isPasswordProtected) {
+            return {
+                blocked: true,
+                filename: attachment.name,
+                reason: 'Attachment must be password protected'
             };
         }
     }
@@ -526,18 +598,36 @@ function checkAttachments(attachments, blockedTypes = [], allowedTypes = []) {
 // Update the getDefaultPolicy function
 function getDefaultPolicy() {
     return {
+        policyName: 'Default Security Policy',
+        isEnabled: true,
+        enableIRM: false,
+        enableLogging: true,
+        
+        // Domain policy defaults
         allowedDomains: [],
         blockedDomains: [],
         alwaysEncryptDomains: [],
-        contentScanning: true,
+        useAllowedDomains: false,
+        
+        // Attachment policy defaults
         attachmentPolicy: true,
+        allowedAttachments: ['.pdf','.docx','.xlsx','.pptx','.jpg','.png'],
         blockedAttachments: ['.exe','.bat','.sh','.dll','.msi'],
-        allowedAttachments: [],
         maxAttachmentSizeMB: 10,
-        encryptOutgoingEmails: false,
         encryptOutgoingAttachments: false,
-        irmPolicy: null,
-        regexPatterns: []
+        requirePasswordProtectedAttachments: false,
+        
+        // Content scanning defaults
+        contentScanning: true,
+        customRegexPatterns: [],
+        sensitiveKeywords: ['confidential','proprietary','secret'],
+        
+        // Encryption defaults
+        encryptOutgoingEmails: false,
+        enableEncryption: false,
+        
+        // IRM defaults
+        irmPolicy: null
     };
 }
 async function getEncryptedEmail(emailDataDto, token) {
