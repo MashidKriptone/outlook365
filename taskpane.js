@@ -125,7 +125,7 @@ async function onMessageSendHandler(eventArgs) {
         }
 
         // 8. Apply domain restrictions if policy exists
-    if (policy) {
+    if (policy&& (policy.allowedDomains?.length > 0 || policy.blockedDomains?.length > 0)) {
         console.log('🔒 Applying domain restrictions...');
         
         // Check if domain restrictions are enabled
