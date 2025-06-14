@@ -125,98 +125,98 @@ async function onMessageSendHandler(eventArgs) {
         }
 
         // 8. Apply domain restrictions if policy exists
-    if (policy&& (policy.allowedDomains?.length > 0 || policy.blockedDomains?.length > 0)) {
-        console.log('🔒 Applying domain restrictions...');
-        
-        // Check if domain restrictions are enabled
-        if (policy.useAllowedDomains || policy.blockedDomains.length > 0) {
-            const domainCheckResult = checkDomainRestrictions(
-                toRecipients,
-                ccRecipients,
-                bccRecipients,
-                policy.allowedDomains,
-                policy.blockedDomains,
-                policy.useAllowedDomains
+        if (policy && (policy.allowedDomains?.length > 0 || policy.blockedDomains?.length > 0)) {
+            console.log('🔒 Applying domain restrictions...');
+
+            // Check if domain restrictions are enabled
+            if (policy.useAllowedDomains || policy.blockedDomains.length > 0) {
+                const domainCheckResult = checkDomainRestrictions(
+                    toRecipients,
+                    ccRecipients,
+                    bccRecipients,
+                    policy.allowedDomains,
+                    policy.blockedDomains,
+                    policy.useAllowedDomains
+                );
+
+                if (domainCheckResult.blocked) {
+                    console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
+                    await showOutlookNotification(
+                        "Blocked Domain",
+                        `Cannot send to ${domainCheckResult.domain} per company policy`
+                    );
+                    eventArgs.completed({ allowEvent: false });
+                    return;
+                }
+            }
+
+            // Check if domain requires encryption
+            const requiresEncryption = policy.alwaysEncryptDomains.some(domain =>
+                getAllRecipients(toRecipients, ccRecipients, bccRecipients)
+                    .some(email => email.trim().endsWith(`@${domain}`))
             );
 
-            if (domainCheckResult.blocked) {
-                console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
+            if (requiresEncryption) {
+                policy.encryptOutgoingEmails = true;
+                policy.encryptOutgoingAttachments = true;
+            }
+        }
+
+        // 9. Content scanning if enabled
+        if (policy?.contentScanning) {
+            console.log('🔎 Scanning email content...');
+            const contentScanResult = scanContent(
+                body,
+                subject,
+                attachments,
+                policy.customRegexPatterns,
+                policy.sensitiveKeywords
+            );
+            if (contentScanResult.found) {
+                console.warn(`❌ Restricted content found: ${contentScanResult.type}`);
                 await showOutlookNotification(
-                    "Blocked Domain",
-                    `Cannot send to ${domainCheckResult.domain} per company policy`
+                    "Restricted Content",
+                    `Cannot send: Email contains restricted ${contentScanResult.type}`
                 );
                 eventArgs.completed({ allowEvent: false });
                 return;
             }
         }
 
-        // Check if domain requires encryption
-        const requiresEncryption = policy.alwaysEncryptDomains.some(domain => 
-            getAllRecipients(toRecipients, ccRecipients, bccRecipients)
-                .some(email => email.trim().endsWith(`@${domain}`))
-        );
-        
-        if (requiresEncryption) {
-            policy.encryptOutgoingEmails = true;
-            policy.encryptOutgoingAttachments = true;
-        }
-    }
+        // 10. Attachment policy checks
+        if (policy?.attachmentPolicy && attachments?.length > 0) {
+            console.log('📎 Checking attachments...');
 
-    // 9. Content scanning if enabled
-    if (policy?.contentScanning) {
-        console.log('🔎 Scanning email content...');
-        const contentScanResult = scanContent(
-            body, 
-            subject, 
-            attachments, 
-            policy.customRegexPatterns, 
-            policy.sensitiveKeywords
-        );
-        if (contentScanResult.found) {
-            console.warn(`❌ Restricted content found: ${contentScanResult.type}`);
-            await showOutlookNotification(
-                "Restricted Content",
-                `Cannot send: Email contains restricted ${contentScanResult.type}`
+            // Check attachment size
+            const sizeExceeded = attachments.some(att =>
+                att.size > (policy.maxAttachmentSizeMB * 1024 * 1024)
             );
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
-    }
+            if (sizeExceeded) {
+                await showOutlookNotification(
+                    "Attachment Too Large",
+                    `Attachments exceed maximum size of ${policy.maxAttachmentSizeMB}MB`
+                );
+                eventArgs.completed({ allowEvent: false });
+                return;
+            }
 
-    // 10. Attachment policy checks
-    if (policy?.attachmentPolicy && attachments?.length > 0) {
-        console.log('📎 Checking attachments...');
-        
-        // Check attachment size
-        const sizeExceeded = attachments.some(att => 
-            att.size > (policy.maxAttachmentSizeMB * 1024 * 1024)
-        );
-        if (sizeExceeded) {
-            await showOutlookNotification(
-                "Attachment Too Large",
-                `Attachments exceed maximum size of ${policy.maxAttachmentSizeMB}MB`
+            // Check blocked attachment types
+            const attachmentCheckResult = checkAttachments(
+                attachments,
+                policy.blockedAttachments,
+                policy.allowedAttachments,
+                policy.requirePasswordProtectedAttachments
             );
-            eventArgs.completed({ allowEvent: false });
-            return;
+            if (attachmentCheckResult.blocked) {
+                console.warn(`❌ Blocked attachment: ${attachmentCheckResult.filename}`);
+                await showOutlookNotification(
+                    "Restricted Attachment",
+                    `Cannot send: ${attachmentCheckResult.reason}`
+                );
+                eventArgs.completed({ allowEvent: false });
+                return;
+            }
         }
-        
-        // Check blocked attachment types
-        const attachmentCheckResult = checkAttachments(
-            attachments, 
-            policy.blockedAttachments,
-            policy.allowedAttachments,
-            policy.requirePasswordProtectedAttachments
-        );
-        if (attachmentCheckResult.blocked) {
-            console.warn(`❌ Blocked attachment: ${attachmentCheckResult.filename}`);
-            await showOutlookNotification(
-                "Restricted Attachment",
-                `Cannot send: ${attachmentCheckResult.reason}`
-            );
-            eventArgs.completed({ allowEvent: false });
-            return;
-        }
-    }
 
         // 11. Prepare email data for API
         console.log('📦 Preparing email data for API...');
@@ -256,65 +256,65 @@ async function onMessageSendHandler(eventArgs) {
         }
 
 
-// Replace the current encryption handling block with this:
-if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
-    console.log("🔐 Beginning encryption process...");
-    
-    try {
-        const encryptedResult = await getEncryptedEmail(emailData, token);
-        
-        if (encryptedResult.encryptedAttachments?.length > 0) {
-            console.log("✅ Encryption successful, updating email");
-            
-            // Use the instruction note as the new body content
-            const newBodyContent = encryptedResult.instructionNote || 
-                "<p>This email contains encrypted content. Please use the attached files to view the secure message.</p>";
-            
-            await updateEmailWithEncryptedContent(
-                item, 
-                encryptedResult.encryptedAttachments,
-                newBodyContent
-            );
-            
-            eventArgs.completed({ allowEvent: true });
-            return;
-        } else {
-            console.warn("⚠️ Encryption required but no encrypted content returned");
-            await showOutlookNotification(
-                "Encryption Required", 
-                "This email requires encryption but the service is unavailable. Email not sent."
-            );
-            eventArgs.completed({ allowEvent: false });
-            return;
+        // Replace the current encryption handling block with this:
+        if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
+            console.log("🔐 Beginning encryption process...");
+
+            try {
+                const encryptedResult = await getEncryptedEmail(emailData, token);
+
+                if (encryptedResult.encryptedAttachments?.length > 0) {
+                    console.log("✅ Encryption successful, updating email");
+
+                    // Use the instruction note as the new body content
+                    const newBodyContent = encryptedResult.instructionNote ||
+                        "<p>This email contains encrypted content. Please use the attached files to view the secure message.</p>";
+
+                    await updateEmailWithEncryptedContent(
+                        item,
+                        encryptedResult.encryptedAttachments,
+                        newBodyContent
+                    );
+
+                    eventArgs.completed({ allowEvent: true });
+                    return;
+                } else {
+                    console.warn("⚠️ Encryption required but no encrypted content returned");
+                    await showOutlookNotification(
+                        "Encryption Required",
+                        "This email requires encryption but the service is unavailable. Email not sent."
+                    );
+                    eventArgs.completed({ allowEvent: false });
+                    return;
+                }
+            } catch (encryptionError) {
+                console.error("❌ Encryption process failed:", encryptionError);
+                await showOutlookNotification(
+                    "Encryption Failed",
+                    "This email requires encryption but the service failed. Email not sent."
+                );
+                eventArgs.completed({ allowEvent: false });
+                return;
+            }
         }
-    } catch (encryptionError) {
-        console.error("❌ Encryption process failed:", encryptionError);
-        await showOutlookNotification(
-            "Encryption Failed", 
-            "This email requires encryption but the service failed. Email not sent."
-        );
-        eventArgs.completed({ allowEvent: false });
-        return;
-    }
-}
 
 
         // 13. If no encryption needed, just save the email data
-       // Replace the current saveEmailData call with this:
-if (!policy?.encryptOutgoingEmails && !policy?.encryptOutgoingAttachments) {
-    console.log('💾 Saving email data (non-encrypted path)...');
-    try {
-        const saveResult = await saveEmailData(emailData, token);
-        if (!saveResult.success) {
-            console.error('❌ Failed to save email data:', saveResult.message);
-            await showOutlookNotification("Warning", "Email will be sent but audit logging failed: " + saveResult.message);
+        // Replace the current saveEmailData call with this:
+        if (!policy?.encryptOutgoingEmails && !policy?.encryptOutgoingAttachments) {
+            console.log('💾 Saving email data (non-encrypted path)...');
+            try {
+                const saveResult = await saveEmailData(emailData, token);
+                if (!saveResult.success) {
+                    console.error('❌ Failed to save email data:', saveResult.message);
+                    await showOutlookNotification("Warning", "Email will be sent but audit logging failed: " + saveResult.message);
+                }
+            } catch (error) {
+                console.error('❌ Failed to save email data:', error);
+                // Fail open - allow sending even if saving fails
+                console.warn('⚠️ Allowing send despite save failure');
+            }
         }
-    } catch (error) {
-        console.error('❌ Failed to save email data:', error);
-        // Fail open - allow sending even if saving fails
-        console.warn('⚠️ Allowing send despite save failure');
-    }
-}
 
         // 14. All checks passed - allow the email to send
         console.log('✅ All checks passed - allowing send');
@@ -418,7 +418,7 @@ async function updateEmailWithEncryptedContent(item, encryptedAttachments, newBo
         await new Promise((resolve, reject) => {
             item.body.setAsync(
                 newBodyContent,
-                { 
+                {
                     coercionType: Office.CoercionType.Html,
                     asyncContext: null
                 },
@@ -433,38 +433,41 @@ async function updateEmailWithEncryptedContent(item, encryptedAttachments, newBo
         });
 
         // 2. Remove existing attachments
-        const currentAttachments = await new Promise(resolve => {
-            item.getAttachmentsAsync(resolve);
-        });
+        if (apiResponse.encryptedAttachments && apiResponse.encryptedAttachments.length > 0) {
+            const currentAttachments = await new Promise(resolve => {
+                item.getAttachmentsAsync(resolve);
+            });
 
-        if (currentAttachments.value?.length > 0) {
-            await Promise.all(currentAttachments.value.map(att => 
-                new Promise(resolve => {
-                    item.removeAttachmentAsync(att.id, resolve);
-                })
-            ));
-        }
+            if (currentAttachments.value?.length > 0) {
+                await Promise.all(currentAttachments.value.map(att =>
+                    new Promise(resolve => {
+                        item.removeAttachmentAsync(att.id, resolve);
+                    })
+                ));
+            }
 
-        // 3. Add new encrypted attachments
-        for (const attachment of encryptedAttachments) {
-            if (attachment.fileData) {
-                // Ensure we have clean base64 data (remove data URI prefix if present)
-                const cleanBase64 = attachment.fileData.replace(/^data:[^;]+;base64,/, '');
-                
-                await new Promise((resolve, reject) => {
-                    item.addFileAttachmentFromBase64Async(
-                        cleanBase64,
-                        attachment.fileName || "encrypted-file.ksf",
-                        { isInline: false },
-                        (result) => {
-                            if (result.status === Office.AsyncResultStatus.Succeeded) {
-                                resolve();
-                            } else {
-                                reject(new Error(`Failed to add attachment: ${result.error.message}`));
+
+            // 3. Add new encrypted attachments
+            for (const attachment of encryptedAttachments) {
+                if (attachment.fileData) {
+                    // Ensure we have clean base64 data (remove data URI prefix if present)
+                    const cleanBase64 = attachment.fileData.replace(/^data:[^;]+;base64,/, '');
+
+                    await new Promise((resolve, reject) => {
+                        item.addFileAttachmentFromBase64Async(
+                            cleanBase64,
+                            attachment.fileName || "encrypted-file.ksf",
+                            { isInline: false },
+                            (result) => {
+                                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                                    resolve();
+                                } else {
+                                    reject(new Error(`Failed to add attachment: ${result.error.message}`));
+                                }
                             }
-                        }
-                    );
-                });
+                        );
+                    });
+                }
             }
         }
 
@@ -514,7 +517,7 @@ async function fetchPolicyDomains(token, from) {
         }
 
         const responseData = await response.json();
-        
+
         // Check if the response contains the data object
         if (!responseData.success || !responseData.data) {
             throw new Error('Invalid policy API response structure');
@@ -581,20 +584,20 @@ async function fetchPolicyDomains(token, from) {
 function checkAttachments(attachments, blockedTypes = [], allowedTypes = [], requirePassword = false) {
     for (const attachment of attachments) {
         const ext = `.${attachment.name.split('.').pop().toLowerCase()}`;
-        
+
         // Check blocked extensions
         if (blockedTypes.includes(ext)) {
-            return { 
-                blocked: true, 
+            return {
+                blocked: true,
                 filename: attachment.name,
                 reason: `Attachment type ${ext} is blocked by policy`
             };
         }
-        
+
         // Check if using allow list and attachment not in it
         if (allowedTypes.length > 0 && !allowedTypes.includes(ext)) {
-            return { 
-                blocked: true, 
+            return {
+                blocked: true,
                 filename: attachment.name,
                 reason: `Attachment type ${ext} is not allowed by policy`
             };
@@ -619,30 +622,30 @@ function getDefaultPolicy() {
         isEnabled: true,
         enableIRM: false,
         enableLogging: true,
-        
+
         // Domain policy defaults
         allowedDomains: [],
         blockedDomains: [],
         alwaysEncryptDomains: [],
         useAllowedDomains: false,
-        
+
         // Attachment policy defaults
         attachmentPolicy: true,
-        allowedAttachments: ['.pdf','.docx','.xlsx','.pptx','.jpg','.png'],
-        blockedAttachments: ['.exe','.bat','.sh','.dll','.msi'],
+        allowedAttachments: ['.pdf', '.docx', '.xlsx', '.pptx', '.jpg', '.png'],
+        blockedAttachments: ['.exe', '.bat', '.sh', '.dll', '.msi'],
         maxAttachmentSizeMB: 10,
         encryptOutgoingAttachments: false,
         requirePasswordProtectedAttachments: false,
-        
+
         // Content scanning defaults
         contentScanning: true,
         customRegexPatterns: [],
-        sensitiveKeywords: ['confidential','proprietary','secret'],
-        
+        sensitiveKeywords: ['confidential', 'proprietary', 'secret'],
+
         // Encryption defaults
         encryptOutgoingEmails: false,
         enableEncryption: false,
-        
+
         // IRM defaults
         irmPolicy: null
     };
