@@ -268,12 +268,7 @@ if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
             console.log("✅ Encryption successful, updating email");
             
             // Update the email with encrypted content
-            await updateEmailWithEncryptedContent(
-                item, 
-                encryptedResult.encryptedAttachments,
-                encryptedResult.instructionNote,
-                encryptedResult.encryptedEmailBody
-            );
+            await updateEmailWithEncryptedContent(item, encryptedResult);
             
             eventArgs.completed({ allowEvent: true });
             return;
@@ -410,55 +405,58 @@ function scanContent(body, subject, attachments, customPatterns = [], keywords =
 /**
  * Updates the email with encrypted content
  */
-async function updateEmailWithEncryptedContent(item, encryptedAttachments, instructionNote, encryptedBody) {
+async function updateEmailWithEncryptedContent(item, apiResponse) {
     try {
-        // 1. Update email body if we have instructions or encrypted body
-        const newBodyContent = encryptedBody || instructionNote || "Secure email content";
-        
-        await new Promise((resolve, reject) => {
-            item.body.setAsync(
-                newBodyContent,
-                { coercionType: Office.CoercionType.Html },
-                (result) => {
-                    if (result.status === Office.AsyncResultStatus.Succeeded) {
-                        resolve();
-                    } else {
-                        reject(new Error(`Failed to update body: ${result.error.message}`));
+        // 1. Update email body if we have instructions
+        if (apiResponse.instructionNote) {
+            await new Promise((resolve, reject) => {
+                item.body.setAsync(
+                    apiResponse.instructionNote,
+                    { coercionType: Office.CoercionType.Html },
+                    (result) => {
+                        if (result.status === Office.AsyncResultStatus.Succeeded) {
+                            resolve();
+                        } else {
+                            reject(new Error(`Failed to update body: ${result.error.message}`));
+                        }
                     }
-                }
-            );
-        });
-
-        // 2. Remove existing attachments
-        const currentAttachments = await new Promise(resolve => {
-            item.getAttachmentsAsync(resolve);
-        });
-
-        if (currentAttachments.value?.length > 0) {
-            await Promise.all(currentAttachments.value.map(att => 
-                new Promise(resolve => {
-                    item.removeAttachmentAsync(att.id, resolve);
-                })
-            ));
+                );
+            });
         }
 
-        // 3. Add new encrypted attachments
-        for (const attachment of encryptedAttachments) {
-            if (attachment.fileData) {
-                await new Promise((resolve, reject) => {
-                    item.addFileAttachmentFromBase64Async(
-                        attachment.fileData.replace(/^data:[^;]+;base64,/, ''),
-                        attachment.fileName || "encrypted-file.ksf",
-                        { isInline: false },
-                        (result) => {
-                            if (result.status === Office.AsyncResultStatus.Succeeded) {
-                                resolve();
-                            } else {
-                                reject(new Error(`Failed to add attachment: ${result.error.message}`));
+        // 2. Only process attachments if we have them
+        if (apiResponse.encryptedAttachments && apiResponse.encryptedAttachments.length > 0) {
+            // Remove existing attachments
+            const currentAttachments = await new Promise(resolve => {
+                item.getAttachmentsAsync(resolve);
+            });
+
+            if (currentAttachments.value?.length > 0) {
+                await Promise.all(currentAttachments.value.map(att => 
+                    new Promise(resolve => {
+                        item.removeAttachmentAsync(att.id, resolve);
+                    })
+                ));
+            }
+
+            // Add new encrypted attachments
+            for (const attachment of apiResponse.encryptedAttachments) {
+                if (attachment.fileData) {
+                    await new Promise((resolve, reject) => {
+                        item.addFileAttachmentFromBase64Async(
+                            attachment.fileData.replace(/^data:[^;]+;base64,/, ''),
+                            attachment.fileName || "encrypted-file.ksf",
+                            { isInline: false },
+                            (result) => {
+                                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                                    resolve();
+                                } else {
+                                    reject(new Error(`Failed to add attachment: ${result.error.message}`));
+                                }
                             }
-                        }
-                    );
-                });
+                        );
+                    });
+                }
             }
         }
 
@@ -672,15 +670,10 @@ async function getEncryptedEmail(emailDataDto, token) {
         }
 
         // Map the API response to your expected format
-        return {
-            encryptedAttachments: responseData.encryptedAttachments.map(att => ({
-                fileData: att.fileData,
-                fileName: att.fileName,
-                fileType: att.fileType,
-                fileSize: att.fileSize
-            })),
-            instructionNote: responseData.instructionNote,
-            encryptedEmailBody: responseData.encryptedEmailBody
+              return {
+            encryptedFile: responseData.encryptedAttachments[0].fileData,
+            fileName: responseData.encryptedAttachments[0].fileName || "secure-message.ksf",
+            instructionNote: responseData.instructionNote || "Secure email content"
         };
 
     } catch (error) {
