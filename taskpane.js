@@ -255,8 +255,8 @@ async function onMessageSendHandler(eventArgs) {
             return;
         }
 
-        // Handle encryption if required
-       // In your onMessageSendHandler where you handle encryption:
+
+// Replace the current encryption handling block with this:
 if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
     console.log("🔐 Beginning encryption process...");
     
@@ -264,41 +264,48 @@ if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
         const encryptedResult = await getEncryptedEmail(emailData, token);
         
         // Check if encryption was actually performed
-        if (encryptedResult.instructionNote === "Encryption disabled.") {
-            console.log("ℹ️ Encryption was disabled by server policy");
-            // Continue with normal send flow
-        } else if (!encryptedResult.encryptedAttachments || encryptedResult.encryptedAttachments.length === 0) {
-            console.warn("⚠️ No encrypted attachments returned");
-            await showOutlookNotification("Warning", "Email will be sent unencrypted due to server configuration");
-        } else {
+        if (encryptedResult.encryptedAttachments && encryptedResult.encryptedAttachments.length > 0) {
+            console.log("✅ Encryption successful, updating email");
             await updateEmailWithEncryptedContent(item, encryptedResult);
             eventArgs.completed({ allowEvent: true });
+            return;
+        } else {
+            console.warn("⚠️ Encryption required but no encrypted content returned");
+            await showOutlookNotification(
+                "Encryption Required", 
+                "This email requires encryption but the service is unavailable. Email not sent."
+            );
+            eventArgs.completed({ allowEvent: false });
             return;
         }
     } catch (encryptionError) {
         console.error("❌ Encryption process failed:", encryptionError);
-        await showOutlookNotification("Encryption Failed", "Email will be sent unencrypted");
-        // Continue with normal send flow
+        await showOutlookNotification(
+            "Encryption Failed", 
+            "This email requires encryption but the service failed. Email not sent."
+        );
+        eventArgs.completed({ allowEvent: false });
+        return;
     }
 }
 
 
         // 13. If no encryption needed, just save the email data
-        console.log('💾 Saving email data...');
-        try {
-            const saveResult = await saveEmailData(emailData, token);
-            if (!saveResult.success) {
-                console.error('❌ Failed to save email data:', saveResult.message);
-                // Show warning but allow sending
-                await showOutlookNotification("Warning", "Email will be sent but audit logging failed: " + saveResult.message);
-            } else {
-                console.log('✅ Email data saved successfully');
-            }
-        } catch (error) {
-            console.error('❌ Failed to save email data:', error);
-            // Fail open - allow sending even if saving fails
-            console.warn('⚠️ Allowing send despite save failure');
+       // Replace the current saveEmailData call with this:
+if (!policy?.encryptOutgoingEmails && !policy?.encryptOutgoingAttachments) {
+    console.log('💾 Saving email data (non-encrypted path)...');
+    try {
+        const saveResult = await saveEmailData(emailData, token);
+        if (!saveResult.success) {
+            console.error('❌ Failed to save email data:', saveResult.message);
+            await showOutlookNotification("Warning", "Email will be sent but audit logging failed: " + saveResult.message);
         }
+    } catch (error) {
+        console.error('❌ Failed to save email data:', error);
+        // Fail open - allow sending even if saving fails
+        console.warn('⚠️ Allowing send despite save failure');
+    }
+}
 
         // 14. All checks passed - allow the email to send
         console.log('✅ All checks passed - allowing send');
