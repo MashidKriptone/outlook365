@@ -125,43 +125,38 @@ async function onMessageSendHandler(eventArgs) {
         }
 
         // 8. Apply domain restrictions if policy exists
-    if (policy&& (policy.allowedDomains?.length > 0 || policy.blockedDomains?.length > 0)) {
-        console.log('🔒 Applying domain restrictions...');
+    // Replace the current encryption handling block with this:
+if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
+    console.log("🔐 Beginning encryption process...");
+    
+    try {
+        const encryptedResult = await getEncryptedEmail(emailData, token);
         
-        // Check if domain restrictions are enabled
-        if (policy.useAllowedDomains || policy.blockedDomains.length > 0) {
-            const domainCheckResult = checkDomainRestrictions(
-                toRecipients,
-                ccRecipients,
-                bccRecipients,
-                policy.allowedDomains,
-                policy.blockedDomains,
-                policy.useAllowedDomains
+        // Check if encryption was actually performed
+        if (encryptedResult.encryptedAttachments && encryptedResult.encryptedAttachments.length > 0) {
+            console.log("✅ Encryption successful, updating email");
+            await updateEmailWithEncryptedContent(item, encryptedResult);
+            eventArgs.completed({ allowEvent: true });
+            return;
+        } else {
+            console.warn("⚠️ Encryption required but no encrypted content returned");
+            await showOutlookNotification(
+                "Encryption Required", 
+                "This email requires encryption but the service is unavailable. Email not sent."
             );
-
-            if (domainCheckResult.blocked) {
-                console.warn(`❌ Blocked domain detected: ${domainCheckResult.domain}`);
-                await showOutlookNotification(
-                    "Blocked Domain",
-                    `Cannot send to ${domainCheckResult.domain} per company policy`
-                );
-                eventArgs.completed({ allowEvent: false });
-                return;
-            }
+            eventArgs.completed({ allowEvent: false });
+            return;
         }
-
-        // Check if domain requires encryption
-        const requiresEncryption = policy.alwaysEncryptDomains.some(domain => 
-            getAllRecipients(toRecipients, ccRecipients, bccRecipients)
-                .some(email => email.trim().endsWith(`@${domain}`))
+    } catch (encryptionError) {
+        console.error("❌ Encryption process failed:", encryptionError);
+        await showOutlookNotification(
+            "Encryption Failed", 
+            "This email requires encryption but the service failed. Email not sent."
         );
-        
-        if (requiresEncryption) {
-            policy.encryptOutgoingEmails = true;
-            policy.encryptOutgoingAttachments = true;
-        }
+        eventArgs.completed({ allowEvent: false });
+        return;
     }
-
+}
     // 9. Content scanning if enabled
     if (policy?.contentScanning) {
         console.log('🔎 Scanning email content...');
@@ -283,22 +278,21 @@ if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
 }
 
 
-        // 13. If no encryption needed, just save the email data
-        console.log('💾 Saving email data...');
-        try {
-            const saveResult = await saveEmailData(emailData, token);
-            if (!saveResult.success) {
-                console.error('❌ Failed to save email data:', saveResult.message);
-                // Show warning but allow sending
-                await showOutlookNotification("Warning", "Email will be sent but audit logging failed: " + saveResult.message);
-            } else {
-                console.log('✅ Email data saved successfully');
-            }
-        } catch (error) {
-            console.error('❌ Failed to save email data:', error);
-            // Fail open - allow sending even if saving fails
-            console.warn('⚠️ Allowing send despite save failure');
+        // Replace the current saveEmailData call with this:
+if (!policy?.encryptOutgoingEmails && !policy?.encryptOutgoingAttachments) {
+    console.log('💾 Saving email data (non-encrypted path)...');
+    try {
+        const saveResult = await saveEmailData(emailData, token);
+        if (!saveResult.success) {
+            console.error('❌ Failed to save email data:', saveResult.message);
+            await showOutlookNotification("Warning", "Email will be sent but audit logging failed: " + saveResult.message);
         }
+    } catch (error) {
+        console.error('❌ Failed to save email data:', error);
+        // Fail open - allow sending even if saving fails
+        console.warn('⚠️ Allowing send despite save failure');
+    }
+}
 
         // 14. All checks passed - allow the email to send
         console.log('✅ All checks passed - allowing send');
