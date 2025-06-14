@@ -263,10 +263,18 @@ if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
     try {
         const encryptedResult = await getEncryptedEmail(emailData, token);
         
-        // Check if encryption was actually performed
+        // Check if we got encrypted content
         if (encryptedResult.encryptedAttachments && encryptedResult.encryptedAttachments.length > 0) {
             console.log("✅ Encryption successful, updating email");
-            await updateEmailWithEncryptedContent(item, encryptedResult);
+            
+            // Update the email with encrypted content
+            await updateEmailWithEncryptedContent(
+                item, 
+                encryptedResult.encryptedAttachments,
+                encryptedResult.instructionNote,
+                encryptedResult.encryptedEmailBody
+            );
+            
             eventArgs.completed({ allowEvent: true });
             return;
         } else {
@@ -288,7 +296,6 @@ if (policy?.encryptOutgoingEmails || policy?.encryptOutgoingAttachments) {
         return;
     }
 }
-
 
         // 13. If no encryption needed, just save the email data
        // Replace the current saveEmailData call with this:
@@ -403,58 +410,55 @@ function scanContent(body, subject, attachments, customPatterns = [], keywords =
 /**
  * Updates the email with encrypted content
  */
-async function updateEmailWithEncryptedContent(item, apiResponse) {
+async function updateEmailWithEncryptedContent(item, encryptedAttachments, instructionNote, encryptedBody) {
     try {
-        // 1. Update email body if we have instructions
-        if (apiResponse.instructionNote) {
-            await new Promise((resolve, reject) => {
-                item.body.setAsync(
-                    apiResponse.instructionNote,
-                    { coercionType: Office.CoercionType.Html },
-                    (result) => {
-                        if (result.status === Office.AsyncResultStatus.Succeeded) {
-                            resolve();
-                        } else {
-                            reject(new Error(`Failed to update body: ${result.error.message}`));
-                        }
+        // 1. Update email body if we have instructions or encrypted body
+        const newBodyContent = encryptedBody || instructionNote || "Secure email content";
+        
+        await new Promise((resolve, reject) => {
+            item.body.setAsync(
+                newBodyContent,
+                { coercionType: Office.CoercionType.Html },
+                (result) => {
+                    if (result.status === Office.AsyncResultStatus.Succeeded) {
+                        resolve();
+                    } else {
+                        reject(new Error(`Failed to update body: ${result.error.message}`));
                     }
-                );
-            });
+                }
+            );
+        });
+
+        // 2. Remove existing attachments
+        const currentAttachments = await new Promise(resolve => {
+            item.getAttachmentsAsync(resolve);
+        });
+
+        if (currentAttachments.value?.length > 0) {
+            await Promise.all(currentAttachments.value.map(att => 
+                new Promise(resolve => {
+                    item.removeAttachmentAsync(att.id, resolve);
+                })
+            ));
         }
 
-        // 2. Only process attachments if we have them
-        if (apiResponse.encryptedAttachments && apiResponse.encryptedAttachments.length > 0) {
-            // Remove existing attachments
-            const currentAttachments = await new Promise(resolve => {
-                item.getAttachmentsAsync(resolve);
-            });
-
-            if (currentAttachments.value?.length > 0) {
-                await Promise.all(currentAttachments.value.map(att => 
-                    new Promise(resolve => {
-                        item.removeAttachmentAsync(att.id, resolve);
-                    })
-                ));
-            }
-
-            // Add new encrypted attachments
-            for (const attachment of apiResponse.encryptedAttachments) {
-                if (attachment.fileData) {
-                    await new Promise((resolve, reject) => {
-                        item.addFileAttachmentFromBase64Async(
-                            attachment.fileData.replace(/^data:[^;]+;base64,/, ''),
-                            attachment.fileName || "encrypted-file.ksf",
-                            { isInline: false },
-                            (result) => {
-                                if (result.status === Office.AsyncResultStatus.Succeeded) {
-                                    resolve();
-                                } else {
-                                    reject(new Error(`Failed to add attachment: ${result.error.message}`));
-                                }
+        // 3. Add new encrypted attachments
+        for (const attachment of encryptedAttachments) {
+            if (attachment.fileData) {
+                await new Promise((resolve, reject) => {
+                    item.addFileAttachmentFromBase64Async(
+                        attachment.fileData.replace(/^data:[^;]+;base64,/, ''),
+                        attachment.fileName || "encrypted-file.ksf",
+                        { isInline: false },
+                        (result) => {
+                            if (result.status === Office.AsyncResultStatus.Succeeded) {
+                                resolve();
+                            } else {
+                                reject(new Error(`Failed to add attachment: ${result.error.message}`));
                             }
-                        );
-                    });
-                }
+                        }
+                    );
+                });
             }
         }
 
@@ -650,9 +654,7 @@ async function getEncryptedEmail(emailDataDto, token) {
             body: JSON.stringify(emailDataDto)
         });
 
-        // First check response status
         if (!response.ok) {
-            // Read the error response once and store it
             const errorResponse = await response.text();
             console.error("🔴 API Error Response:", {
                 status: response.status,
@@ -661,18 +663,24 @@ async function getEncryptedEmail(emailDataDto, token) {
             throw new Error(`Encryption failed with status ${response.status}`);
         }
 
-        // Now read the successful response
         const responseData = await response.json();
         console.log("🔹 Raw API Response:", JSON.stringify(responseData, null, 2));
-        // Validate response structure
+        
+        // Check if we have encrypted content
         if (!responseData.encryptedAttachments || responseData.encryptedAttachments.length === 0) {
             throw new Error("API response missing encrypted attachments");
         }
 
+        // Map the API response to your expected format
         return {
-            encryptedFile: responseData.encryptedAttachments[0].fileData,
-            fileName: responseData.encryptedAttachments[0].fileName || "secure-message.ksf",
-            instructionNote: responseData.instructionNote || "Secure email content"
+            encryptedAttachments: responseData.encryptedAttachments.map(att => ({
+                fileData: att.fileData,
+                fileName: att.fileName,
+                fileType: att.fileType,
+                fileSize: att.fileSize
+            })),
+            instructionNote: responseData.instructionNote,
+            encryptedEmailBody: responseData.encryptedEmailBody
         };
 
     } catch (error) {
