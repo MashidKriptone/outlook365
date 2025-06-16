@@ -433,7 +433,7 @@ async function updateEmailWithEncryptedContent(item, encryptedAttachments, newBo
         });
 
         // 2. Remove existing attachments
-        if (apiResponse.encryptedAttachments && apiResponse.encryptedAttachments.length > 0) {
+        if (encryptedAttachments && encryptedAttachments.length > 0) {
             const currentAttachments = await new Promise(resolve => {
                 item.getAttachmentsAsync(resolve);
             });
