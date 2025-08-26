@@ -761,19 +761,16 @@ function generateUUID() {
 // Outlook notification helper
 async function showOutlookNotification(title, message) {
     return new Promise((resolve) => {
-        // Format the message better
-        const formattedMessage = `
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-                <h3 style="color: #0078d4; margin-bottom: 8px;">${title}</h3>
-                <p style="margin-top: 0;">${message}</p>
-                ${title.includes("Error") ? '<p style="font-size: smaller;">Please try again or contact support if the problem persists.</p>' : ''}
-            </div>
-        `;
+        let fullMessage = `${title}\n${message}`;
+        if (title.includes("Error")) {
+            fullMessage += "\nPlease try again or contact support if the problem persists.";
+        }
 
         Office.context.mailbox.item.notificationMessages.addAsync("notification", {
             type: title.includes("Error") ? "errorMessage" : "informationalMessage",
-            message: formattedMessage,
+            message: fullMessage, // must be plain text
             persistent: false
         }, resolve);
     });
 }
+
