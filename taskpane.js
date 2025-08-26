@@ -760,17 +760,25 @@ function generateUUID() {
 
 // Outlook notification helper
 async function showOutlookNotification(title, message) {
-    return new Promise((resolve) => {
-        let fullMessage = `${title}\n${message}`;
-        if (title.includes("Error")) {
-            fullMessage += "\nPlease try again or contact support if the problem persists.";
-        }
-
-        Office.context.mailbox.item.notificationMessages.addAsync("notification", {
-            type: title.includes("Error") ? "errorMessage" : "informationalMessage",
-            message: fullMessage, // must be plain text
-            persistent: false
-        }, resolve);
+    return new Promise((resolve, reject) => {
+        let notificationId = "notif_" + Date.now(); // unique ID
+        let fullMessage = `${title}: ${message}`;
+        
+        Office.context.mailbox.item.notificationMessages.addAsync(
+            notificationId,
+            {
+                type: title.includes("Error") ? "errorMessage" : "informationalMessage",
+                message: fullMessage,
+                persistent: false
+            },
+            (asyncResult) => {
+                if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+                    console.error("Notification failed:", asyncResult.error.message);
+                    reject(asyncResult.error);
+                } else {
+                    resolve();
+                }
+            }
+        );
     });
 }
-
