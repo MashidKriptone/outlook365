@@ -353,7 +353,7 @@ function applyPolicyToUI(policy) {
 }
 
 // Main email send handler
-async function onMessageSendHandler(eventArgs) {
+async function onMessageSendHandler(event) {
     const startTime = Date.now();
     console.log('🚀 onMessageSendHandler started at:', new Date().toISOString());
 
@@ -364,7 +364,7 @@ async function onMessageSendHandler(eventArgs) {
                 "Network Error",
                 "You appear to be offline. Please check your network connection."
             );
-            eventArgs.completed({ allowEvent: false });
+            event.completed({ allowEvent: false });
             return;
         }
 
@@ -390,23 +390,23 @@ async function onMessageSendHandler(eventArgs) {
                         encryptedResult.instructionNote || "<p>This email contains encrypted content.</p>"
                     );
 
-                    eventArgs.completed({ allowEvent: true });
+                    event.completed({ allowEvent: true });
                     return;
                 } else {
                     await showOutlookNotification(
                         "Encryption Required",
                         "This email requires encryption but the service is unavailable. Email not sent."
                     );
-                    eventArgs.completed({ allowEvent: false });
+                    event.completed({ allowEvent: false });
                     return;
                 }
             } catch (encryptionError) {
+                event.completed({ allowEvent: false });
                 console.error("❌ Encryption process failed:", encryptionError);
                 await showOutlookNotification(
                     "Encryption Failed",
                     "This email requires encryption but the service failed. Email not sent."
                 );
-                eventArgs.completed({ allowEvent: false });
                 return;
             }
         }
@@ -415,13 +415,18 @@ async function onMessageSendHandler(eventArgs) {
         try {
             await saveEmailData(emailData);
         } catch (error) {
+            event.completed({ allowEvent: false });
             console.error('❌ Failed to save email data:', error);
-            await showOutlookNotification("Warning", "Email will be sent but audit logging failed");
+            await showOutlookNotification(
+                "Service Error",
+                "KntrolEMAIL service is unavailable. Email not sent."
+            );
+            return; // 🚨 stop further processing
         }
 
         // 8. All checks passed - allow the email to send
         await showOutlookNotification("Success", "Email sent with IRM protections");
-        eventArgs.completed({ allowEvent: true });
+        event.completed({ allowEvent: true });
 
     } catch (error) {
         if (isNetworkError(error)) {
@@ -435,7 +440,7 @@ async function onMessageSendHandler(eventArgs) {
                 "We're sorry, an unexpected error occurred. Please try again later."
             );
         }
-        eventArgs.completed({ allowEvent: false });
+        event.completed({ allowEvent: false });
     } finally {
         console.log(`⏱️ Handler completed in ${Date.now() - startTime}ms`);
     }
@@ -618,7 +623,7 @@ async function updateEmailWithEncryptedContent(item, encryptedAttachments, instr
 }
 
 // Get encrypted email from service
-async function getEncryptedEmail(emailDataDto) {
+async function getEncryptedEmail(emailDataDto, event) {
     try {
         const response = await fetch("https://kntrolemail.kriptone.com:6677/api/Email", {
             method: "POST",
@@ -645,13 +650,15 @@ async function getEncryptedEmail(emailDataDto) {
             encryptedEmailBody: responseData.encryptedEmailBody
         };
     } catch (error) {
+        console.error("❌ Encryption API failed:", error);
         console.error("Encryption error:", error);
-        throw error;
+        event.completed({ allowEvent: false });
+        return;
     }
 }
 
 // Save email data to server
-async function saveEmailData(emailData) {
+async function saveEmailData(emailData, event) {
     try {
         const response = await fetch('https://kntrolemail.kriptone.com:6677/api/Email', {
             method: 'POST',
@@ -671,8 +678,9 @@ async function saveEmailData(emailData) {
 
         return await response.json();
     } catch (error) {
-        console.error("Error saving email data:", error);
-        throw error;
+        console.error("❌ Failed to save email data:", error);
+        event.completed({ allowEvent: false });
+        return;
     }
 }
 
@@ -765,7 +773,6 @@ async function showOutlookNotification(title, message) {
         Office.context.mailbox.item.notificationMessages.addAsync("notification", {
             type: title.includes("Error") ? "errorMessage" : "informationalMessage",
             message: formattedMessage,
-            icon: "icon1",
             persistent: false
         }, resolve);
     });
