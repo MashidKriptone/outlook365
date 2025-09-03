@@ -623,7 +623,7 @@ async function updateEmailWithEncryptedContent(item, encryptedAttachments, instr
 }
 
 // Get encrypted email from service
-async function getEncryptedEmail(emailDataDto, event) {
+async function getEncryptedEmail(emailDataDto) {
     try {
         const response = await fetch("https://kntrolemail.kriptone.com:6677/api/Email", {
             method: "POST",
@@ -636,24 +636,68 @@ async function getEncryptedEmail(emailDataDto, event) {
 
         if (!response.ok) {
             const errorResponse = await response.text();
-            throw new Error(`Encryption failed with status ${response.status}: ${errorResponse}`);
+
+            // 🔴 Case: Tenant not registered
+            if (errorResponse.includes("Tenant not registered")) {
+                console.warn("⚠️ Tenant not registered. Registering company...");
+
+                const domain = emailDataDto.fromEmailID.split("@")[1]; 
+                const companyPayload = {
+                    companyId: generateUUID(),
+                    companyName: domain.split(".")[0],
+                    domainName: domain,
+                    databaseName: domain.replace(/\./g, "_") + "_db",
+                    licenseType: "Standard",
+                    numberOfLicenses: 10,
+                    expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString(),
+                    message: "Auto-registered via Outlook Add-in",
+                    city: "Unknown",
+                    state: "Unknown",
+                    country: "Unknown",
+                    pin: "000000",
+                    emailServiceProvider: 1,
+                    registeredByEmail: emailDataDto.fromEmailID
+                };
+
+                try {
+                    const onboardResponse = await fetch("https://kntrolemail.kriptone.com:6677/api/CompanyRegistration/onboarding", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-Tenant-ID": "kriptone.com"
+                        },
+                        body: JSON.stringify(companyPayload)
+                    });
+
+                    if (!onboardResponse.ok) {
+                        console.error("❌ Company registration failed:", await onboardResponse.text());
+                    } else {
+                        console.log("✅ Company registered.");
+                    }
+                } catch (e) {
+                    console.error("❌ Error during company registration:", e);
+                }
+
+                // ✅ Always retry Email API after attempting company registration
+                console.log("🔄 Retrying Email API after company registration...");
+                return await getEncryptedEmail(emailDataDto);
+            }
+
+            // Other errors
+            console.error("❌ Encryption failed:", errorResponse);
+            return null;
         }
 
+        // Success case
         const responseData = await response.json();
-        if (!responseData.encryptedAttachments || responseData.encryptedAttachments.length === 0) {
-            throw new Error("API response missing encrypted attachments");
-        }
-
         return {
             encryptedAttachments: responseData.encryptedAttachments || [],
             instructionNote: responseData.instructionNote,
             encryptedEmailBody: responseData.encryptedEmailBody
         };
     } catch (error) {
-        console.error("❌ Encryption API failed:", error);
-        console.error("Encryption error:", error);
-        event.completed({ allowEvent: false });
-        return;
+        console.error("❌ Encryption API error:", error);
+        return null;
     }
 }
 
@@ -679,7 +723,7 @@ async function saveEmailData(emailData, event) {
         return await response.json();
     } catch (error) {
         console.error("❌ Failed to save email data:", error);
-        event.completed({ allowEvent: false });
+        event.completed({ allowEvent: false, errorMessage: "KntrolEMAIL service is unavailable. Email not sent." });
         return;
     }
 }
@@ -761,24 +805,26 @@ function generateUUID() {
 // Outlook notification helper
 async function showOutlookNotification(title, message) {
     return new Promise((resolve, reject) => {
-        let notificationId = "notif_" + Date.now(); // unique ID
-        let fullMessage = `${title}: ${message}`;
-        
+        const id = "notif_" + Date.now();
+        const msg = (title + ": " + message).substring(0, 150); // must be <=150 chars plain text
+
         Office.context.mailbox.item.notificationMessages.addAsync(
-            notificationId,
+            id,
             {
                 type: title.includes("Error") ? "errorMessage" : "informationalMessage",
-                message: fullMessage,
+                message: msg,
                 persistent: false
             },
-            (asyncResult) => {
-                if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                    console.error("Notification failed:", asyncResult.error.message);
-                    reject(asyncResult.error);
+            (result) => {
+                if (result.status === Office.AsyncResultStatus.Failed) {
+                    console.error("Notification failed:", result.error.message);
+                    reject(result.error);
                 } else {
+                    console.log("Notification shown:", msg);
                     resolve();
                 }
             }
         );
     });
 }
+
