@@ -29,7 +29,6 @@
     <Form xsi:type="ItemEdit">
       <DesktopSettings>
         <SourceLocation DefaultValue="https://mashidkriptone.github.io/outlook365/taskpane.html" />
-        <!-- <RequestedHeight>250</RequestedHeight> -->
       </DesktopSettings>
     </Form>
   </FormSettings>
@@ -62,13 +61,7 @@
 
           <DesktopFormFactor>
             <FunctionFile resid="Commands.Url" />
-<ExtensionPoint xsi:type="LaunchEvent">
-              <LaunchEvents>
-              <LaunchEvent Type="OnNewMessageCompose" FunctionName="onNewMessageCompose" />
-                <LaunchEvent Type="OnMessageSend" FunctionName="onMessageSendHandler" SendMode="SoftBlock" />
-              </LaunchEvents>
-              <SourceLocation resid="WebViewRuntime.Url"/>
-            </ExtensionPoint>
+
             <ExtensionPoint xsi:type="MessageComposeCommandSurface">
               <OfficeTab id="TabDefault">
                 <Group id="msgComposeGroup">
@@ -91,7 +84,24 @@
                 </Group>
               </OfficeTab>
             </ExtensionPoint>
+            <ExtensionPoint xsi:type="LaunchEvent">
+              <LaunchEvents>
+              <LaunchEvent Type="OnNewMessageCompose" FunctionName="onNewMessageCompose" />
+                <LaunchEvent Type="OnMessageSend" FunctionName="onMessageSendHandler" SendMode="SoftBlock" />
+              </LaunchEvents>
+              <SourceLocation resid="WebViewRuntime.Url"/>
+            </ExtensionPoint>
           </DesktopFormFactor>
+          <MobileFormFactor>
+                    <!-- Configures event-based activation. -->
+                    <ExtensionPoint xsi:type="LaunchEvent">
+                        <LaunchEvents>
+                            <LaunchEvent Type="OnNewMessageCompose" FunctionName="onNewMessageComposeHandler"/>
+                        </LaunchEvents>
+                        <!-- Identifies the runtime to be used (also referenced by the Runtime element). -->
+                        <SourceLocation resid="WebViewRuntime.Url"/>
+                    </ExtensionPoint>
+                </MobileFormFactor>
         </Host>
       </Hosts>
 
