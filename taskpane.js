@@ -200,7 +200,7 @@ async function fetchPolicySettings() {
 
         const email = await getUserEmailFromOutlook();
 
-        const response = await fetch(`https://kntrolemail.kriptone.com:6677/api/Policy/GetPolicyByEmailAsync/${email}`, {
+        const response = await fetch(`https://kntrolemail.kriptone.com:6677/api/Policy/GetPolicyByEmailAsync/${email}?qemail=${email}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
