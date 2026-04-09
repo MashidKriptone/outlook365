@@ -252,10 +252,14 @@ function mapPolicyResponse(policy) {
         allowedAttachments: policy.attachmentPolicy?.allowedAttachments || [],
         blockedAttachments: policy.attachmentPolicy?.blockedAttachments || [],
         maxAttachmentSizeMB: policy.attachmentPolicy?.maxAttachmentSizeMB || 10,
-        encryptOutgoingAttachments: policy.attachmentPolicy?.encryptOutgoingAttachments === true,
-        requirePasswordProtectedAttachments: policy.attachmentPolicy?.requirePasswordProtectedAttachments === true,
+        encryptOutgoingAttachments:
+            policy.attachmentPolicy?.encryptOutgoingAttachments === true ||
+            policy.encryptionPolicy?.encryptAttachments === true,
 
-        // Regex/content scanning
+        requirePasswordProtectedAttachments:
+            policy.attachmentPolicy?.requirePasswordProtectedAttachments === true,
+
+        // Content scanning
         contentScanning: policy.regexPolicy?.contentScanning === true,
         customRegexPatterns: policy.regexPolicy?.customRegexPatterns || [],
         sensitiveKeywords: policy.regexPolicy?.sensitiveKeywords || [],
@@ -263,6 +267,7 @@ function mapPolicyResponse(policy) {
         // Encryption policy
         encryptOutgoingEmails: policy.encryptionPolicy?.encryptOutgoingEmails === true,
         enableEncryption: policy.encryptionPolicy?.enableEncryption === true,
+        encryptEmailBody: policy.encryptionPolicy?.encryptEmailBody === true,
 
         // IRM policy
         irmPolicy: policy.irmPolicy ? {
@@ -272,10 +277,17 @@ function mapPolicyResponse(policy) {
             blockEdit: policy.irmPolicy.blockEdit === true,
             blockScreenCapture: policy.irmPolicy.blockScreenCapture === true,
             lockOnFailure: policy.irmPolicy.lockOnFailure === true,
+
             maxOpenCount: policy.irmPolicy.maxOpenCount || null,
-            expireOn: policy.irmPolicy.expireOn || null,
-            maxFailAttempts: policy.irmPolicy.maxFailAttempts || 5,
-            recipientRestrictions: policy.irmPolicy.recipientRestrictions || "none"
+            expireOn: policy.irmPolicy.expiryDate || null,
+
+            maxFailAttempts: policy.irmPolicy.maxFailedAttempts || 5,
+
+            recipientRestrictions: "none",
+
+            sendAccessAck:
+                policy.irmPolicy.notifySenderOnEmailRead === true ||
+                policy.irmPolicy.notifySenderOnAttachmentOpen === true
         } : null
     };
 }
