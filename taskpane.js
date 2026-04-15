@@ -200,14 +200,21 @@ async function fetchPolicySettings() {
 
         const email = await getUserEmailFromOutlook();
 
-        const response = await fetch(`https://kntrolemail.kriptone.com:6677/api/Policy/GetPolicyByEmailAsync/${email}?qemail=${email}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                "X-Tenant-ID": "kriptone.com"
-            },
-        });
+        // ✅ ADD THIS LINE
+        const encodedEmail = encodeURIComponent(email);
+
+        // ✅ USE encodedEmail in API
+        const response = await fetch(
+            `https://kntrolemail.kriptone.com:6677/api/Policy/GetPolicyByEmailAsync/${encodedEmail}?qemail=${encodedEmail}`,
+            {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    "X-Tenant-ID": "kriptone.com"
+                },
+            }
+        );
 
         if (!response.ok) {
             throw new Error(`Policy API responded with status ${response.status}`);
