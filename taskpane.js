@@ -844,14 +844,14 @@ function generateUUID() {
 async function showOutlookNotification(title, message) {
     return new Promise((resolve, reject) => {
         const id = "notif_" + Date.now();
-        const msg = (title + ": " + message).substring(0, 150); // must be <=150 chars plain text
+        const msg = (title + ": " + message).substring(0, 150);
 
         Office.context.mailbox.item.notificationMessages.addAsync(
             id,
             {
                 type: title.includes("Error") ? "errorMessage" : "informationalMessage",
-                message: msg,
-                persistent: false
+                message: msg
+                // ❌ REMOVE persistent
             },
             (result) => {
                 if (result.status === Office.AsyncResultStatus.Failed) {
