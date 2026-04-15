@@ -546,18 +546,37 @@ async function prepareEmailDataWithIRM(item) {
     return {
         id: generateUUID(),
         fromEmailID: from || "",
-        emailTo: toRecipients ? toRecipients.split(',').map(e => e.trim()).filter(e => e) : [],
-        emailCc: ccRecipients ? ccRecipients.split(',').map(e => e.trim()).filter(e => e) : [],
-        emailBcc: bccRecipients ? bccRecipients.split(',').map(e => e.trim()).filter(e => e) : [],
-        emailSubject: subject || "(No Subject)",
+        senderDomain: from.split("@")[1] || "",
+
+        emailTo: toRecipients ? toRecipients.split(',') : [],
+        emailCc: ccRecipients ? ccRecipients.split(',') : [],
+        emailBcc: bccRecipients ? bccRecipients.split(',') : [],
+
+        emailSubject: subject || "",
         emailBody: body || "",
         timestamp: new Date().toISOString(),
+
         attachments: attachmentPayloads,
-        serviceProvider: "google",
-        irmSettings: {
-            ...irmSettings,
-            policyName: currentPolicy?.policyName || "Default Policy"
-        }
+
+        // ✅ ADD THESE
+        receiverDomains: (toRecipients || "")
+            .split(',')
+            .map(e => e.trim().split("@")[1])
+            .filter(Boolean),
+
+        policyId: currentPolicy?.id || "",
+        policyName: currentPolicy?.policyName || "",
+
+        shouldEncrypt: currentPolicy?.enableEncryption === true,
+        encryptBody: currentPolicy?.encryptEmailBody === true,
+        encryptAttachments: currentPolicy?.encryptOutgoingAttachments === true,
+
+        serviceProvider: "outlook",
+
+        irmPolicy: currentPolicy?.irmPolicy || {},
+
+        totalRecipients: (toRecipients || "").split(',').length,
+        totalAttachments: attachmentPayloads.length
     };
 }
 
@@ -660,7 +679,7 @@ async function getEncryptedEmail(emailDataDto) {
             if (errorResponse.includes("Tenant not registered")) {
                 console.warn("⚠️ Tenant not registered. Registering company...");
 
-                const domain = emailDataDto.fromEmailID.split("@")[1]; 
+                const domain = emailDataDto.fromEmailID.split("@")[1];
                 const companyPayload = {
                     companyId: generateUUID(),
                     companyName: domain.split(".")[0],
@@ -668,7 +687,7 @@ async function getEncryptedEmail(emailDataDto) {
                     databaseName: domain.replace(/\./g, "_") + "_db",
                     licenseType: "Standard",
                     numberOfLicenses: 10,
-                    expiryDate: new Date(Date.now() + 365*24*60*60*1000).toISOString(),
+                    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
                     message: "Auto-registered via Outlook Add-in",
                     city: "Unknown",
                     state: "Unknown",
