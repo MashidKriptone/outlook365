@@ -406,7 +406,7 @@ async function onMessageSendHandler(event) {
                     await updateEmailWithEncryptedContent(
                         item,
                         encryptedResult.encryptedAttachments,
-                        encryptedResult.instructionNote || "<p>This email contains encrypted content.</p>"
+                        encryptedResult.instructionHtml || "<p>This email contains encrypted content.</p>"
                     );
 
                     event.completed({ allowEvent: true });
@@ -601,12 +601,12 @@ function getAttachmentBase64(attachment) {
 }
 
 // Update email with encrypted content
-async function updateEmailWithEncryptedContent(item, encryptedAttachments, instructionNote) {
+async function updateEmailWithEncryptedContent(item, encryptedAttachments, instructionHtml) {
     try {
         // Update the body with the instruction note
         await new Promise((resolve, reject) => {
             item.body.setAsync(
-                instructionNote,
+                instructionHtml,
                 {
                     coercionType: Office.CoercionType.Html,
                     asyncContext: null
@@ -730,7 +730,7 @@ async function getEncryptedEmail(emailDataDto) {
         const responseData = await response.json();
         return {
             encryptedAttachments: responseData.encryptedAttachments || [],
-            instructionNote: responseData.instructionNote,
+            instructionHtml: responseData.instructionHtml,
             encryptedEmailBody: responseData.encryptedEmailBody
         };
     } catch (error) {
